@@ -38,11 +38,7 @@ var gameserver = {
     this.players[playerID] = {
       id: playerID,
       created: nowish,
-      pos: [0.0, 0.0, 0.0],
-      x: 0.0,
-      y: 0.0,
-      z: 0.0,
-      lastchanged: nowish
+      pos: [0.0, -100.0, 0.0]
     };
   },
 
@@ -58,6 +54,8 @@ var gameserver = {
     let player = this.players[playerID];
     player.pos = data.pos;
     player.color = data.color;
+
+    channel.broadcast.emit('setplayer', player);
     
     if ('lagmebro' in data && data.lagmebro) {
       channel.emit('lagmebro', true);
@@ -86,12 +84,16 @@ var gameserver = {
     }
     */
 
+    channel.broadcast.emit('fire', data);
+
+    /*
     for (let channelID in this.connections) {
         if (channelID != channel.id) {
             //console.log(`Sending ${channel.id}'s bullet over to ${channelID}`);
             this.connections[channelID].emit('fire', data);
         }
     }
+    */
 
     //this.respond_with_data(res, results);
   }

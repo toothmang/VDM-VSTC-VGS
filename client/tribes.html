@@ -13,6 +13,7 @@
 			MOUSE to look around and to throw balls<br/>
 			WASD to move and SPACE to jump
 		</div>
+        <div id="hud">HUD</div>
 		<div id="container"></div>
 
 		<!-- Import maps polyfill -->
@@ -31,21 +32,17 @@
 		<script type="module">
 
 import * as THREE from 'three';
-
 import Stats from 'three/addons/libs/stats.module.js';
-
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-
 import { Octree } from 'three/addons/math/Octree.js';
 import { OctreeHelper } from 'three/addons/helpers/OctreeHelper.js';
-
 import { Capsule } from 'three/addons/math/Capsule.js';
-
+import { clone } from 'three/addons/utils/SkeletonUtils.js';
 import { GUI } from 'three/addons/libs/lil-gui.module.min.js';
 
 const clock = new THREE.Clock();
-
 const scene = new THREE.Scene();
+
 scene.background = new THREE.Color( 0x88ccee );
 scene.fog = new THREE.Fog( 0x88ccee, 0, 50 );
 
@@ -72,6 +69,7 @@ directionalLight.shadow.bias = - 0.00006;
 scene.add( directionalLight );
 
 const container = document.getElementById( 'container' );
+const hud = document.getElementById( 'hud' );
 
 const renderer = new THREE.WebGLRenderer( { antialias: true } );
 renderer.setPixelRatio( window.devicePixelRatio );
@@ -98,17 +96,15 @@ const sphereMaterial = new THREE.MeshLambertMaterial( { color: 0xbbbb44 } );
 
 const NUM_PLAYERS = 10;
 const PLAYER_RADIUS = 0.4;
-const playerGeometry = new THREE.IcosahedronGeometry( PLAYER_RADIUS, 5 );
+var playerGeometry = new THREE.IcosahedronGeometry( PLAYER_RADIUS, 5 );
 const playerMaterial = new THREE.MeshLambertMaterial( { color: 0x44aa22 } );
 
 const spheres = [];
 let sphereIdx = 0;
 
-const playerSpheres = [];
-let playerSphereIdx = 0;
 
 for ( let i = 0; i < NUM_SPHERES; i ++ ) {
-    const sphere = new THREE.Mesh( sphereGeometry, sphereMaterial );
+    const sphere = new THREE.Mesh( sphereGeometry, sphereMaterial.clone() );
     sphere.castShadow = true;
     sphere.receiveShadow = true;
 
@@ -121,19 +117,75 @@ for ( let i = 0; i < NUM_SPHERES; i ++ ) {
     } );
 }
 
+const playerSpheres = [];
+const playerMixers = [];
+let animation = null;
+let playerSphereIdx = 0;
+
+
+const loader = new GLTFLoader().setPath( './assets/models/' );
+
+loader.load( './SimpleSkinning.gltf', (gltf) => {
+    scene.add( gltf.scene );
+
+    //gltf.position.set(0, -100, 0);
+
+    let pantsGeometry = gltf.scene;
+
+    gltf.scene.traverse( function ( child ) {
+        if ( child.isSkinnedMesh ) {
+            child.castShadow = true;
+            child.skeleton.bones[0].scale.set(SPHERE_RADIUS, SPHERE_RADIUS, SPHERE_RADIUS);
+        }
+    } );
+
+    let mixer = new THREE.AnimationMixer( gltf.scene );
+    mixer.clipAction( gltf.animations[ 0 ] ).play();
+    playerMixers.push(mixer);
+});
+
 for ( let i = 0; i < NUM_PLAYERS; i ++ ) {
-    const ps = new THREE.Mesh( playerGeometry, playerMaterial );
+    const ps = new THREE.Mesh( playerGeometry, playerMaterial.clone() );
+    //const ps = clone(pantsGeometry);
+
+    /*
+    let moveToScene = null;
+    ps.traverse( function ( child ) {
+        if ( child.isSkinnedMesh ) {
+            child.castShadow = true;
+            child.material.skinning = true;
+            moveToScene = child.skeleton.bones[0];
+        }
+    } );
+    ps.animations = gltf.animations;
+    moveToScene.rotation.set(0, 0, 0);
+    moveToScene.position.set(0, -100, 0);
+    moveToScene.scale.set(PLAYER_RADIUS, PLAYER_RADIUS, PLAYER_RADIUS);
+    scene.add(moveToScene);
+    mixer = new THREE.AnimationMixer( ps );
+    mixer.clipAction( ps.animations[ 0 ] ).play();
+    playerMixers.push(mixer);
+
+    */
+
+    ps.position.set(0, -100, 0);
     ps.castShadow = true;
     ps.receiveShadow = true;
 
     scene.add( ps );
+
+
 
     playerSpheres.push( {
         mesh: ps,
         collider: new THREE.Sphere( new THREE.Vector3( 0, - 100, 0 ), PLAYER_RADIUS ),
         velocity: new THREE.Vector3()
     } );
-}
+    }
+
+
+
+
 
 
 let channel = null;
@@ -160,7 +212,7 @@ function setPlayerRefresh(newRate) {
         if (channel) {
 
             channel.emit('setplayer', GetLocalPlayerData());
-            channel.emit("getplayers", true);
+            //channel.emit("getplayers", true);
         }
         
     }, refreshRate);
@@ -178,7 +230,8 @@ function getFakePlayerFire(f) {
             end: f.pos,
             radius: PLAYER_RADIUS * 1.5
         },
-        velocity: f.vel
+        velocity: f.vel,
+        color: f.color
     }
             
 }
@@ -192,7 +245,8 @@ function GetLocalPlayerFire() {
         pos: pos,
         dir: dir,
         vel: vel,
-        id: localplayer.id
+        id: localplayer.id,
+        color: localplayer.color
     };
 }
 
@@ -205,8 +259,8 @@ function GetLocalPlayerData() {
     };
 }
 
-let players = [];
-let localplayer = null;
+var players = {}
+var localplayer = null;
 
 // Latency checking
 var playerSentTime = null;
@@ -235,6 +289,10 @@ function establishChannel() {
             players = data;
         });
 
+        channel.on('setplayer', function(data) {
+            players[data.id] = data;
+        });
+
         channel.on('lagmebro', function(data) {
             playerReceiveTime = new Date();
             playerLagTime = playerReceiveTime - playerSentTime;
@@ -255,7 +313,8 @@ function establishChannel() {
                     end: fpos,
                     radius: PLAYER_RADIUS * 1.5
                 },
-                velocity: fvel
+                velocity: fvel,
+                color: data.color
             });
             
         });
@@ -292,6 +351,8 @@ function makeLocalPlayer() {
         velocity: new THREE.Vector3(),
         direction: new THREE.Vector3(),
         onFloor: false,
+        jetting: false,
+        jetjuice: 100,
         id: -1,
         color: getRandomColorHex()
     };
@@ -376,6 +437,8 @@ function throwBall(player) {
 
     const sphere = spheres[ sphereIdx ];
 
+    sphere.mesh.material.color.set(player.color);
+
     sphere.collider.center.copy( player.collider.end ).addScaledVector( player.direction, player.collider.radius * 1.5 );
 
     // throw the ball with more force if we hold the button longer, and if we move forward
@@ -416,6 +479,9 @@ function updateLocalPlayer( deltaTime ) {
 
     let damping = Math.exp( - 4 * deltaTime ) - 1;
 
+    const JETJUICE_RATE = 75;
+    const JETFORCE = GRAVITY * 1.3;
+
     if ( ! localplayer.onFloor ) {
 
         localplayer.velocity.y -= GRAVITY * deltaTime;
@@ -423,7 +489,22 @@ function updateLocalPlayer( deltaTime ) {
         // small air resistance
         damping *= 0.1;
 
+        if (localplayer.jetting && localplayer.jetjuice > 0) {
+            localplayer.velocity.y += JETFORCE * deltaTime;
+            //damping *= 0.5;
+
+            localplayer.jetjuice -= deltaTime * JETJUICE_RATE;
+        }
     }
+
+    if (!localplayer.jetting && localplayer.jetjuice < 100) {
+        localplayer.jetjuice += deltaTime * JETJUICE_RATE;
+    }
+
+    let juiceDisplay = Math.floor(localplayer.jetjuice);
+
+    hud.innerHTML = `Juice: ${juiceDisplay}`;
+
 
     localplayer.velocity.addScaledVector( localplayer.velocity, damping );
 
@@ -440,13 +521,26 @@ function updateRemotePlayers( deltaTime ) {
     let c = new THREE.Vector3();
 
     playerSphereIdx = 0;
-    players.forEach(player => {
-        if (player.id == localplayer.id) return;
 
+    for (let pid in players) {
+        if (pid == localplayer.id) continue;
+        let player = players[pid];
         c.set(player.pos.x, player.pos.y, player.pos.z);
-        playerSpheres[playerSphereIdx++].mesh.position.copy(c);
+        let ps = playerSpheres[playerSphereIdx++];
+        ps.mesh.position.copy(c);
 
-    });
+        ps.mesh.traverse( function ( child ) {
+            if ( child.isSkinnedMesh ) {
+                //child.material
+                child.material.color.set(player.color);
+                child.skeleton.bones[0].position.set(player.pos.x, player.pos.y, player.pos.z);
+            }
+        } );
+        if (ps.mesh.material != undefined) {
+            ps.mesh.material.color.set(player.color);
+        }
+        
+    }
 }
 
 function playerSphereCollision( player, sphere ) {
@@ -612,19 +706,19 @@ function controls( deltaTime ) {
 
     }
 
-    if ( localplayer.onFloor ) {
-
-        if ( keyStates[ 'Space' ] ) {
-
+    if ( keyStates[ 'Space' ] ) {
+        if ( localplayer.onFloor) {
             localplayer.velocity.y = 15;
-
         }
-
+        else {
+            localplayer.jetting = true;
+        }
+    }
+    else {
+        localplayer.jetting = false;
     }
 
 }
-
-const loader = new GLTFLoader().setPath( './assets/models/' );
 
 loader.load( 'collision-world.glb', ( gltf ) => {
 
@@ -653,18 +747,29 @@ loader.load( 'collision-world.glb', ( gltf ) => {
     helper.visible = false;
     scene.add( helper );
 
+    makeLocalPlayer(true);
+
     const gui = new GUI( { width: 200 } );
+    gui.add( { stats: true}, 'stats')
+        .onChange( function (value) {
+            stats.domElement.style.visibility =  value ? "visible" : "hidden";
+        });
     gui.add( { debug: false }, 'debug' )
         .onChange( function ( value ) {
             helper.visible = value;
         } );
 
-    gui.add( { delay: 50 }, 'delay')
+    gui.add( { refreshRate: 50 }, 'refreshRate')
         .onChange( function (value) {
             refreshRate = value;
+            setPlayerRefresh(refreshRate);
+        })
+    gui.addColor( { color: localplayer.color}, 'color')
+        .onChange ( function (value) {
+            localplayer.color = value;
         })
 
-    makeLocalPlayer(true);
+    
 
     animate();
 
@@ -709,7 +814,14 @@ function animate() {
 
     stats.update();
 
+    
+    playerMixers.forEach(mixer => {
+        mixer.update( clock.getDelta() );
+    });
+
     requestAnimationFrame( animate );
+
+    
 }
 
 		</script>
