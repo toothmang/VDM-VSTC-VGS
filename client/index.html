@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width,initial-scale=1">
+        <title>GGJ23!</title>
+        <script src="./lib/geckos.io-client.2.3.0.min.js"></script>
+<style>
+h1 {
+	font-family: monospace;
+}
+
+.player {
+    width: 50px;
+    height: 50px;
+    position: absolute;
+}
+
+#game {
+    border: 1px solid black;
+    width: 800px;
+    height: 600px;
+}
+</style>
+
+<script>
+var players = [];
+var playerDivs = {};
+var playerSentTime = null;
+var playerReceiveTime = null;
+var playerLagTime = null;
+var localPlayerDiv = null;
+var localPlayerId = null;
+var channel = null;
+var lastReceived = new Date();
+
+function sendit(args) {
+    return fetch("https://2ths1m.com/ggj23-server", {
+        method: 'POST',
+        headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json' 
+        },
+        body: JSON.stringify(Object.fromEntries(args.entries()))
+    });
+}
+
+function clearplayers() {
+    for(let pd in playerDivs) {
+        pd.remove();
+    }
+}
+
+function getplayers() {
+
+    let nowish = new Date();
+
+    if (channel) {
+        channel.emit('getplayers', true);
+    }
+}
+
+
+function getRandomInt(max) {
+  return Math.floor(Math.random() * max);
+}
+
+function getRandomColorHex() {
+    const digits = "0123456789abcdef";
+    let bgColor = "#";
+
+    for(let i = 0; i < 6; i++) {
+        bgColor += digits[getRandomInt(16)];
+    }
+
+    return bgColor;
+}
+
+function createPlayerDiv(p, local = false) {
+    
+    let pd = document.createElement("div");
+    document.getElementById("game").append(pd);
+    pd.className = "player";
+    if (!local) {
+        pd.id = p;
+        if (p.toString().length >= 6) {
+            let bgColor = "#" + p.substring(0, 6);
+            pd.style.backgroundColor = bgColor;
+            pd.style.backgroundColor = getRandomColorHex();
+        }
+        else {
+            pd.style.backgroundColor = getRandomColorHex();
+        }
+        
+        playerDivs[p] = pd;
+    }
+    else {
+        if (localPlayerDiv) {
+            localPlayerDiv.remove();
+        }
+        localPlayerDiv = pd;
+        localPlayerDiv.id = "localplayer";
+        localPlayerDiv.style.backgroundColor = "white";
+        localPlayerDiv.style.border = "1px solid black";
+        localPlayerDiv.style.width = "60px";
+        localPlayerDiv.style.height = "60px";
+    }
+}
+
+function showplayers() {
+
+    for(let p in players) {
+        let player = players[p];
+        let pid = player.id;
+        if (!(pid in playerDivs)) {
+            createPlayerDiv(pid);
+        }
+
+        let d = playerDivs[pid];
+
+        d.innerHTML =  playerLagTime + " ms";
+        document.getElementById("playerdelay").innerHTML = d.innerHTML;
+
+        if (interpolate && pid in interpolatedPlayerPosition) {
+            let playerPos = interpolatedPlayerPosition[pid].pos;
+            d.style.left = playerPos.x + "px";
+            d.style.top = playerPos.y + "px";
+            //console.log(`Setting player ${pid} to ${playerPos.x}, ${playerPos.y} position`);
+        }
+        else if ("data" in player && "head_position" in player.data) {
+            d.style.left = player.data.head_position.x + "px";
+            d.style.top = player.data.head_position.y + "px";
+        }
+    }
+}
+
+var lastBroadcast = new Date();
+
+var lastLagCheck = new Date();
+
+function setplayer(x, y) {
+
+    if (localPlayerId == null) return;
+
+    if (localPlayerDiv != null) {
+        localPlayerDiv.style.left = (x - 30) + "px";
+        localPlayerDiv.style.top = (y - 30) + "px";
+    }
+
+    lastPlayerPos[0] = x;
+    lastPlayerPos[1] = y;
+
+    let nowish = new Date();
+
+    let timeDiff = nowish - lastBroadcast;
+
+    if (timeDiff < refreshRate) return;
+
+
+
+    //console.log(`Time diff: ${timeDiff}`);
+
+    lastBroadcast = nowish;
+
+    let lagmebro = false;
+    if ((nowish - lastLagCheck) > 1000) {
+        lastLagCheck = nowish;
+        playerSentTime = nowish;
+        lagmebro = true;
+    }
+
+    if (channel) {
+        let data = {
+            id: localPlayerId,
+            head_position: {x : x - 25, y: y - 25, z: 0},
+            lhand_position: {x : x - 25, y: y - 25, z: 0},
+            rhand_position: {x : x - 25, y: y - 25, z: 0},
+            head_rotation: {x : x - 25, y: y - 25, z: 0},
+            lhand_rotation: {x : x - 25, y: y - 25, z: 0},
+            rhand_rotation: {x : x - 25, y: y - 25, z: 0},
+            lagmebro: lagmebro
+        }
+        channel.emit('setplayer', data);
+    }
+}
+
+function makeplayer() {
+
+    if (localPlayerId != null) {
+        dropplayer();
+    }
+
+    channel = geckos({
+        port: 443,
+        url: "https://2ths1m.com/ggj23-server/"
+    });
+
+    // the channel's id and maxMessageSize (in bytes)
+    //const { id, maxMessageSize } = channel
+
+    // once the channel is connected to the server
+    channel.onConnect(error => {
+        if (error) console.error(error.message)
+
+        // listens for a disconnection
+        channel.onDisconnect(() => {})
+
+        // listens for a custom event from the server
+        channel.on('chat message', function(data) {
+            console.log(JSON.stringify(data));
+        });
+
+        channel.on('getplayers', function(data) {
+            players = data;
+            let nowish = new Date();
+
+            if (interpolate) {
+                for(let p in players) {
+                    let player = players[p];
+                    let pid = player.id;
+
+                    if (!("data" in player)) continue;
+
+                    let playerPos = player.data.head_position;
+
+                    if (pid in lastPlayerPosition) {
+                        let lp = lastPlayerPosition[pid];
+
+                        secondLastPlayerPosition[pid] = {
+                            when: lp.when,
+                            pos: lp.pos
+                        };
+                    }
+
+                    lastPlayerPosition[pid] = {
+                        when: nowish,
+                        pos: playerPos
+                    };
+                }
+            }
+        });
+
+        channel.on('lagmebro', function(data) {
+            playerReceiveTime = new Date();
+            playerLagTime = playerReceiveTime - playerSentTime;
+        });
+
+        channel.emit('makeplayer', 'heh');
+        localPlayerId = channel.id;
+
+        createPlayerDiv(null, true);
+
+        console.log("it worked?");
+    });
+}
+
+function dropplayer() {
+
+    if (channel) {
+        channel.emit('dropplayer', 'byeee');
+        channel.close();
+        localPlayerId = null;
+    }
+
+    return;
+}
+
+var playerRefresh;
+var refreshRate = 16;
+
+function setPlayerRefresh(newRate) {
+    refreshRate = Number(newRate);
+    if (playerRefresh) {
+        clearInterval(playerRefresh);
+    }
+
+    playerRefresh = setInterval(() => {
+        if (playerPos[0] != lastPlayerPos[0] || playerPos[1] != lastPlayerPos[1]) 
+        {
+            setplayer(playerPos[0], playerPos[1]);
+            lastPlayerPos[0] = playerPos[0];
+            lastPlayerPos[1] = playerPos[1];
+        }
+
+        if (channel) {
+            channel.emit("getplayers", true);
+        }
+
+        showplayers();
+        
+    }, refreshRate);
+}
+
+function onRefreshChange(event) {
+    setPlayerRefresh(event.target.value);
+}
+
+followPlayer = true;
+
+var playerPos = [0, 0];
+var lastPlayerPos = [0, 0];
+var lastPlayerPosition = {};
+var secondLastPlayerPosition = {};
+var interpolatedPlayerPosition = {};
+var interpolate = false;
+var interpolateInterval;
+
+function lerp(a, b, t) {
+    return (b * t) + (a * (1.0 - t));
+}
+
+window.onload = function() {
+
+    document.getElementById("game").addEventListener("mousemove", function(evt) {
+        if (followPlayer) {
+            playerPos = [evt.clientX, evt.clientY];
+        }
+    });
+
+    document.getElementById("game").addEventListener("click", function(evt) {
+        followPlayer = !followPlayer;
+    });
+
+    document.getElementById("interpolate").addEventListener("change", function(evt) {
+        interpolate = !interpolate;
+
+        if (interpolate) {
+
+            interpolateInterval = setInterval(function() {
+                const interpMethod = Number(document.getElementById("interpMethod").value);
+                let nowish = new Date();
+                for (let p in players) {
+                    let pid = players[p].id;
+
+                    if (pid in lastPlayerPosition && pid in secondLastPlayerPosition) {
+                        
+                        //if (pid == localPlayerId) continue;
+                        
+                        let p2 = secondLastPlayerPosition[pid].pos;
+                        let p1 = lastPlayerPosition[pid].pos;
+                        let dp = {x : p1.x - p2.x, y: p1.y - p2.y, z: p1.z - p2.z};
+                        let dt = (lastPlayerPosition[pid].when - secondLastPlayerPosition[pid].when) / 1000.0;
+
+                        let v = {x : dp.x / dt, y : dp.y / dt, z : dp.z / dt};
+
+                        if (Math.abs(v.x) > 0.0 || Math.abs(v.y) > 0.0 || Math.abs(v.z) > 0.0) {
+                            let elapsed = (nowish - secondLastPlayerPosition[pid].when) / 1000.0;
+
+                            
+                            let t;
+                            let interpPos = {
+                                when: nowish,
+                                pos: players[p].data.head_position
+                            };
+
+                            switch(interpMethod) {
+                                case 0:
+                                    t = elapsed / dt;
+                                    interpPos = {when: nowish, pos: {
+                                        x: Math.round(lerp(p2.x, p1.x, t)),
+                                        y: Math.round(lerp(p2.y, p1.y, t)),
+                                        z: Math.round(lerp(p2.z, p1.z, t))
+                                    }};
+                                    break;
+                                case 1:
+                                    t = dt / (refreshRate / 1000.0);
+                                    interpPos = {when: nowish, pos: {
+                                        x: Math.round(lerp(p2.x, p1.x, t)),
+                                        y: Math.round(lerp(p2.y, p1.y, t)),
+                                        z: Math.round(lerp(p2.z, p1.z, t))
+                                    }};
+                                    break;
+                            }
+                            
+
+
+                            interpolatedPlayerPosition[pid] = interpPos;
+                            //console.log(`interpolating from ${p2.x} to ${p1.x} with t-value ${t}: ${interpPos.pos.x}`);
+                        }
+                    }
+                }
+
+                showplayers();
+            }, 16);
+        }
+        else {
+            clearInterval(interpolateInterval);
+        }
+    });
+
+    console.log("it's all gooooood!");
+    setPlayerRefresh(refreshRate);
+}
+
+var autoMove = false;
+var autoMoveInterval;
+
+function getRandomInt(max) {
+  return Math.floor(Math.random() * max);
+}
+
+var autoMoveMode = 0;
+
+function automode() {
+    autoMove = !autoMove;
+
+    if (autoMove) {
+        autoMoveMode = 1 - autoMoveMode;
+
+        if (autoMoveMode == 1) {
+            autoMoveInterval = setInterval(function () {
+                if (localPlayerId != null) {
+                    let nextX = lastPlayerPos[0];
+                    let nextY = lastPlayerPos[1];
+
+                    
+                    let sign = getRandomInt(2) == 0 ? 1.0 : -1.0;
+
+                    let offset = getRandomInt(10) * sign;
+
+                    if (getRandomInt(2) == 0) {
+                        nextX += offset;
+                    }
+                    else {
+                        nextY += offset;
+                    }
+
+                    playerPos[0] = nextX;
+                    playerPos[1] = nextY;
+                }
+            }, refreshRate);
+        }
+        else if (autoMoveMode == 0) {
+            let autoMoveStart = new Date();
+            autoMoveInterval = setInterval(function () {
+                if (localPlayerId != null) {
+
+                    let nextX = lastPlayerPos[0];
+                    let nextY = lastPlayerPos[1];
+
+                    let elapsed = Math.round(((new Date()) - autoMoveStart) / 1000.0);
+
+                    if (elapsed % 2 == 0) {
+                        nextX = nextX + 1;
+                    }
+                    else {
+                        nextX = nextX - 1;
+                    }
+
+                    playerPos[0] = nextX;
+                    playerPos[1] = nextY;
+                }
+            }, refreshRate);
+        }
+        
+    }
+    else {
+        clearInterval(autoMoveInterval);
+    }
+}
+
+
+   
+</script>
+    </head>
+    <body>
+        <label>ms update: <input type="number" min="1" max="1000" value="16" onchange="onRefreshChange(event)" ></label>
+        <label>Interpolate: <input type="checkbox" id="interpolate"></label>
+        <label>Method: <input type="number" id="interpMethod" value="0"></label>
+        <button onclick="makeplayer()">Make player</button>
+        <button onclick="dropplayer()">Drop player</button>
+        <button onclick="getplayers()">Get players</button>
+        <button onclick="automode()">automode</button>
+        <label>Delay:</label><span id="playerdelay"></span>
+        <div id="game">
+        </div>
+    </body>
+</html>
+
+
+<div id=""></div>
