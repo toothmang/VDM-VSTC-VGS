@@ -56,7 +56,8 @@ var gameserver = {
   setplayer: function (channel, data) {
     let playerID = channel.id;
     let player = this.players[playerID];
-    player.pos = data;
+    player.pos = data.pos;
+    player.color = data.color;
     
     if ('lagmebro' in data && data.lagmebro) {
       channel.emit('lagmebro', true);
@@ -73,6 +74,25 @@ var gameserver = {
     }
 
     channel.emit('getplayers', results);
+    //this.respond_with_data(res, results);
+  },
+
+  fire: function (channel, data) {
+    /*
+    let results = [];
+  
+    for(let p in this.players) {
+      results.push(this.players[p]);
+    }
+    */
+
+    for (let channelID in this.connections) {
+        if (channelID != channel.id) {
+            //console.log(`Sending ${channel.id}'s bullet over to ${channelID}`);
+            this.connections[channelID].emit('fire', data);
+        }
+    }
+
     //this.respond_with_data(res, results);
   }
 };
@@ -138,6 +158,11 @@ gio.onConnection (channel => {
     //console.log("getting players");
     //channel.emit("getplayers", [{id: 1}]);
     gameserver.getplayers(channel, data);
+  })
+
+  channel.on('fire', function(data) {
+    //console.log('FIRE! ' + JSON.stringify(data));
+    gameserver.fire(channel, data);
   })
 
 });

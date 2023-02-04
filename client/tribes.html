@@ -158,13 +158,51 @@ function setPlayerRefresh(newRate) {
         */
 
         if (channel) {
-            let c = new THREE.Vector3();
-            localplayer.collider.getCenter(c);
-            channel.emit('setplayer', c);
+
+            channel.emit('setplayer', GetLocalPlayerData());
             channel.emit("getplayers", true);
         }
         
     }, refreshRate);
+}
+
+
+let pos = new THREE.Vector3();
+let dir = new THREE.Vector3();
+let vel = new THREE.Vector3();
+
+function getFakePlayerFire(f) {
+    return {
+        direction: f.dir,
+        collider: {
+            end: f.pos,
+            radius: PLAYER_RADIUS * 1.5
+        },
+        velocity: f.vel
+    }
+            
+}
+
+function GetLocalPlayerFire() {
+    pos.copy(localplayer.collider.end);
+    camera.getWorldDirection( dir );
+    //.copy(localplayer.direction);
+    vel.copy(localplayer.velocity);
+    return {
+        pos: pos,
+        dir: dir,
+        vel: vel,
+        id: localplayer.id
+    };
+}
+
+function GetLocalPlayerData() {
+    let pos = new THREE.Vector3();
+    localplayer.collider.getCenter(pos);
+    return {
+        pos: pos,
+        color: localplayer.color
+    };
 }
 
 let players = [];
@@ -202,12 +240,47 @@ function establishChannel() {
             playerLagTime = playerReceiveTime - playerSentTime;
         });
 
+        
+        channel.on('fire', function(data) {
+            if (data.id == localplayer.id) return;
+
+            let fpos = new THREE.Vector3(); fpos.set(data.pos.x, data.pos.y, data.pos.z);
+            let fdir = new THREE.Vector3(); fdir.set(data.dir.x, data.dir.y, data.dir.z);
+            let fvel = new THREE.Vector3(); fvel.set(data.vel.x, data.vel.y, data.vel.z);
+
+            
+            throwBall({
+                direction: fdir,
+                collider: {
+                    end: fpos,
+                    radius: PLAYER_RADIUS * 1.5
+                },
+                velocity: fvel
+            });
+            
+        });
+
         channel.emit('makeplayer', 'heh');
 
         localplayer.id = channel.id;
 
         console.log("it worked?");
     });
+}
+
+function getRandomInt(max) {
+  return Math.floor(Math.random() * max);
+}
+
+function getRandomColorHex() {
+    const digits = "0123456789abcdef";
+    let bgColor = "#";
+
+    for(let i = 0; i < 6; i++) {
+        bgColor += digits[getRandomInt(16)];
+    }
+
+    return bgColor;
 }
 
 function makeLocalPlayer() {
@@ -220,6 +293,7 @@ function makeLocalPlayer() {
         direction: new THREE.Vector3(),
         onFloor: false,
         id: -1,
+        color: getRandomColorHex()
     };
     establishChannel();
     setPlayerRefresh(refreshRate);
@@ -269,8 +343,11 @@ container.addEventListener( 'mousedown', () => {
 
 document.addEventListener( 'mouseup', () => {
 
-    if ( document.pointerLockElement !== null ) throwBall(localplayer);
-
+    if ( document.pointerLockElement !== null ) {
+        let f = GetLocalPlayerFire();
+        channel.emit('fire', f);
+        throwBall(getFakePlayerFire(f));
+    }
 } );
 
 document.body.addEventListener( 'mousemove', ( event ) => {
@@ -299,13 +376,12 @@ function throwBall(player) {
 
     const sphere = spheres[ sphereIdx ];
 
-    camera.getWorldDirection( player.direction );
-
     sphere.collider.center.copy( player.collider.end ).addScaledVector( player.direction, player.collider.radius * 1.5 );
 
     // throw the ball with more force if we hold the button longer, and if we move forward
 
-    const impulse = 15 + 30 * ( 1 - Math.exp( ( mouseTime - performance.now() ) * 0.001 ) );
+    //const impulse = 15 + 30 * ( 1 - Math.exp( ( mouseTime - performance.now() ) * 0.001 ) );
+    const impulse = 44;
 
     sphere.velocity.copy( player.direction ).multiplyScalar( impulse );
     sphere.velocity.addScaledVector( player.velocity, 2 );
