@@ -429,10 +429,11 @@ camera.add(audioListener);
 const posSound1 = new THREE.PositionalAudio (audioListener);
 const posSound2 = new THREE.PositionalAudio (audioListener);
 let fireSoundPos = new THREE.Object3D();
-
+let hitSoundPos = new THREE.Object3D();
 scene.add(fireSoundPos);
+scene.add(hitSoundPos);
 fireSoundPos.add(posSound1);
-fireSoundPos.add(posSound2);
+hitSoundPos.add(posSound2);
 
 const audioLoader = new THREE.AudioLoader().setPath('./assets/audio/');
 
@@ -447,6 +448,13 @@ audioLoader.load('fire2.ogg', function(buffer) {
     posSound2.setRefDistance(20);
     posSound2.play();
 });
+
+function playHitSoundAt(position) {
+    hitSoundPos.position.copy(position);
+    posSound2.stop();
+    posSound2.play();
+
+}
 
 
 let channel = null;
@@ -736,10 +744,11 @@ function throwBall(player) {
 
     if (fireSoundPos && posSound1 && posSound2) {
         fireSoundPos.position.copy(sphere.collider.center);
+        posSound1.stop();
+        posSound1.play();
 
         if (THREE.MathUtils.randInt(0, 20) > 1) {
-            posSound1.stop();
-            posSound1.play();
+
         }
         else {
             posSound2.stop();
@@ -885,9 +894,19 @@ function baddieSphereCollision( baddie, sphere ) {
 }
 
 
-function playerSphereCollision( player, sphere ) {
+function playerSphereCollision( player, sphere, isBaddie = false) {
 
-    const center = vector1.addVectors( player.collider.start, player.collider.end ).multiplyScalar( 0.5 );
+    let center;
+    let points = [];
+
+    if (isBaddie) {
+        center = player.collider.center;
+        points = [center];
+    }
+    else {
+        center = vector1.addVectors( player.collider.start, player.collider.end ).multiplyScalar( 0.5 );
+        points =  [ player.collider.start, player.collider.end, center ];
+    }
 
     const sphere_center = sphere.collider.center;
 
@@ -896,7 +915,7 @@ function playerSphereCollision( player, sphere ) {
 
     // approximation: player = 3 spheres
 
-    for ( const point of [ player.collider.start, player.collider.end, center ] ) {
+    for ( const point of points ) {
 
         const d2 = point.distanceToSquared( sphere_center );
 
@@ -909,8 +928,12 @@ function playerSphereCollision( player, sphere ) {
             player.velocity.add( v2 ).sub( v1 );
             sphere.velocity.add( v1 ).sub( v2 );
 
+            playHitSoundAt(sphere_center);
+
             const d = ( r - Math.sqrt( d2 ) ) / 2;
             sphere_center.addScaledVector( normal, - d );
+
+            
 
         }
 
@@ -1031,7 +1054,7 @@ function updateSpheres( deltaTime ) {
         playerSphereCollision( localplayer, sphere );
 
         baddies.forEach(baddie => {
-            baddieSphereCollision(baddie, sphere);
+            playerSphereCollision(baddie, sphere, true);
         });
 
     } );
