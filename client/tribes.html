@@ -320,7 +320,7 @@ function loadBaddies() {
             revive: function(send = false) {
                 this.active = true;
                 this.health = 100;
-                this.flies = THREE.MathUtils.randFloat(0.,100.) < WALKER_PERCENT_CHANCE;
+                this.flies = WALKER_PERCENT_CHANCE < THREE.MathUtils.randFloat(0.,100.);
 
                 if (this.flies) {
                     let rad = 50.;
@@ -904,11 +904,11 @@ function updateLocalPlayer( deltaTime ) {
 
     hudText += `<br>Badjos remaining: ` + gameState.getBaddiesRemaining();
     hudText += `<br>Waves cleared: ${gameState.wavesCleared}`;
-    //if (gameState.clearedIn > 0) 
+    if (gameState.clearedIn > 0)
     {
         hudText += `<br>Last wave cleared in: ` + gameState.clearedIn.toFixed(2) + " s";
     }
-    
+
 
     hud.innerHTML = hudText;
 
