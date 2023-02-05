@@ -3,6 +3,7 @@ import http  from'http';
 import cors from 'cors';
 import crypto  from 'crypto'
 import geckos from '@geckos.io/server';
+import gamestate from './common/gamestate.mjs';
 const app = express();
 const server = http.createServer(app);
 app.use(express.json({ limit: '50mb' }));
@@ -14,6 +15,7 @@ const playerRouter = express.Router();
 var gameserver = {
   players: {},
   connections: {},
+  gamestate: new gamestate(),
 
   respond_with_data: function(res, myData) {
     res.send({data: myData});
@@ -96,6 +98,20 @@ var gameserver = {
     */
 
     //this.respond_with_data(res, results);
+  },
+
+  kill: function(channel, data) {
+    this.gamestate.kill();
+    console.log("Badjo killed - remaining: " + this.gamestate.getBaddiesRemaining());
+    channel.broadcast.emit('kill', data);
+
+    if (this.gamestate.isClear()) {
+      this.gamestate.nextLevel();
+      channel.room.emit('nextLevel', this.gamestate);
+    }
+    else {
+      channel.room.emit('gamestate', this.gamestate);
+    }
   }
 };
 
@@ -174,6 +190,13 @@ gio.onConnection (channel => {
     gameserver.fire(channel, data);
   })
 
+  channel.on('kill', function(data) {
+    gameserver.kill(channel, data);
+  })
+
+  channel.on('nextLevel', function(data) {
+    channel.emit('nextLevel', gameserver.gamestate);
+  })
 });
 
 //app.use('/gametest-server', playerRouter);

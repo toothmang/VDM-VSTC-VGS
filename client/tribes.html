@@ -6,6 +6,7 @@
 		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
 		<link type="text/css" rel="stylesheet" href="main.css">
         <script src="./lib/geckos.io-client.2.3.0.min.js"></script>
+        
 	</head>
 	<body>
         <div id="hudbox">
@@ -38,6 +39,9 @@ import { clone } from 'three/addons/utils/SkeletonUtils.js';
 import { GUI } from 'three/addons/libs/lil-gui.module.min.js';
 import { Water } from 'three/addons/objects/Water.js';
 import { Sky } from 'three/addons/objects/Sky.js';
+import gamestate from "./common/gamestate.mjs";
+
+var gameState = new gamestate();
 
 const clock = new THREE.Clock();
 const scene = new THREE.Scene();
@@ -236,56 +240,18 @@ loader.load( './SimpleSkinning.gltf', (gltf) => {
 //var baddieGeometry = new THREE.IcosahedronGeometry( PLAYER_RADIUS, 5 );
 const baddyDummy = new THREE.Object3D();
 const NUM_BADDIES = 20;
+var baddiesToKill = NUM_BADDIES;
+var baddiesKilled = 0;
+var baddieLevelsCleared = 0;
 var baddyMesh;
 var baddieIdx = 0;
 var baddies = [];
 
-const cloneGltf = (gltf) => {
-  const clone = {
-    animations: gltf.animations,
-    scene: gltf.scene.clone(true)
-  };
-
-  const skinnedMeshes = {};
-
-  gltf.scene.traverse(node => {
-    if (node.isSkinnedMesh) {
-      skinnedMeshes[node.name] = node;
-    }
-  });
-
-  const cloneBones = {};
-  const cloneSkinnedMeshes = {};
-
-  clone.scene.traverse(node => {
-    if (node.isBone) {
-      cloneBones[node.name] = node;
-    }
-
-    if (node.isSkinnedMesh) {
-      cloneSkinnedMeshes[node.name] = node;
-    }
-  });
-
-  for (let name in skinnedMeshes) {
-    const skinnedMesh = skinnedMeshes[name];
-    const skeleton = skinnedMesh.skeleton;
-    const cloneSkinnedMesh = cloneSkinnedMeshes[name];
-
-    const orderedCloneBones = [];
-
-    for (let i = 0; i < skeleton.bones.length; ++i) {
-      const cloneBone = cloneBones[skeleton.bones[i].name];
-      orderedCloneBones.push(cloneBone);
-    }
-
-    cloneSkinnedMesh.bind(
-        new THREE.Skeleton(orderedCloneBones, skeleton.boneInverses),
-        cloneSkinnedMesh.matrixWorld);
-  }
-
-  return clone;
-}
+const baddieLookAt = new THREE.Vector3();
+const baddieDeadPos = new THREE.Vector3(0, -200, 0);
+const baddieFullColor = new THREE.Color(1, 1, 1);
+const baddieDeadColor = new THREE.Color(1, 0, 0);
+const baddieCurrentColor = new THREE.Color(1, 1, 1);
 
 function loadBaddies() {
     loader.load( './baddie.glb', (baddie) => {
@@ -316,22 +282,49 @@ function loadBaddies() {
 
     let px, py, pz;
     for(let i = 0; i < NUM_BADDIES; i++) {
-        px = THREE.MathUtils.randFloat(-50, 50);
-        py = THREE.MathUtils.randFloat(0, 25);
-        pz = THREE.MathUtils.randFloat(-50, 50);
-        baddies.push( {
+        let newbaddie = {
+            index: i,
             position: [px, py, pz],
             collider: new THREE.Sphere( new THREE.Vector3( px, py, pz ), PLAYER_RADIUS * 3),
-            velocity: new THREE.Vector3()
-        });
-        baddyDummy.position.set(px, py, pz);
-        baddyDummy.updateMatrix();
+            velocity: new THREE.Vector3(),
+            active: true,
+            health: 100,
+            kill: function(send = false) {
+                this.active = false;
+                this.health = 0;
+                this.collider.center.copy(baddieDeadPos);
+                baddyDummy.position.copy(baddieDeadPos);
+                baddyDummy.updateMatrix();
+                baddyMesh.setMatrixAt(this.index, baddyDummy.matrix);
+                baddyMesh.setColorAt(this.index, baddieDeadColor);
+                if (channel && send) {
+                    channel.emit("kill", this.index);
+                }
+            },
+            revive: function(send = false) {
+                this.active = true;
+                this.health = 100;
+                this.position = [THREE.MathUtils.randFloat(-50, 50), THREE.MathUtils.randFloat(0, 25), THREE.MathUtils.randFloat(-50, 50) ];
 
-        baddyMesh.setMatrixAt(i, baddyDummy.matrix);
+                console.log(`Setting baddie ${this.index}'s position to ${this.position}`);
+                this.collider.center.set(...this.position);
+
+                baddyDummy.position.set(...this.position);
+                baddyDummy.updateMatrix();
+                baddyMesh.setMatrixAt(this.index, baddyDummy.matrix);
+                baddyMesh.setColorAt(this.index, baddieFullColor);
+
+                if (channel & send) {
+                    channel.emit("revive", this.index);
+                }
+            }
+        };
+        newbaddie.revive(false);
+        baddies.push(newbaddie);
     }
     scene.add(baddyMesh);
 
-    baddyMesh.instanceMatrix.needsUpdate = true;
+    resetBaddies();
 
     /*
     const badboi = badStuff.clone();
@@ -381,6 +374,22 @@ function loadBaddies() {
     */
 
 });
+}
+
+function resetBaddies() {
+    let baddiesToRevive = gameState.getBaddiesRemaining();
+    for(let i = 0; i < NUM_BADDIES && i < baddiesToRevive; i++) {
+        baddies[i].revive();
+    }
+    for(let i = baddiesToRevive; i < NUM_BADDIES; i++) {
+        baddies[i].kill();
+    }
+
+    if (baddyMesh) {
+        baddyMesh.instanceMatrix.needsUpdate = true;
+        baddyMesh.instanceColor.needsUpdate = true;
+    }
+    
 }
 
 
@@ -526,7 +535,8 @@ function GetLocalPlayerData() {
     localplayer.collider.getCenter(pos);
     return {
         pos: pos,
-        color: localplayer.color
+        color: localplayer.color,
+        health: localplayer.health
     };
 }
 
@@ -563,6 +573,17 @@ function establishChannel(isDev = true) {
         // listens for a disconnection
         channel.onDisconnect(() => {})
 
+        channel.on('gamestate', function(data) {
+            gameState.set(data);
+        })
+
+        channel.on('nextLevel', function(data) {
+            gameState.set(data);
+            resetBaddies();
+        })
+
+        channel.emit('nextLevel');
+
         // listens for a custom event from the server
         channel.on('chat message', function(data) {
             console.log(JSON.stringify(data));
@@ -581,6 +602,13 @@ function establishChannel(isDev = true) {
             playerLagTime = playerReceiveTime - playerSentTime;
         });
 
+        channel.on('kill', function(data) {
+            baddies[data].kill(); 
+        });
+
+        channel.on('revive', function(data) {
+            baddies[data].revive();
+        });
 
         channel.on('fire', function(data) {
             if (data.id == localplayer.id) return;
@@ -636,6 +664,7 @@ function makeLocalPlayer() {
         onFloor: false,
         jetting: false,
         jetjuice: 100,
+        health: 100,
         id: -1,
         color: getRandomColorHex(),
     };
@@ -819,14 +848,19 @@ function updateLocalPlayer( deltaTime ) {
 
     let juiceDisplay = Math.floor(localplayer.jetjuice);
 
+    let hudText = "Health: " + localplayer.health + " ";
     //hud.innerHTML = `Juice: ${juiceDisplay}`;
 
     if ( keyStates['ShiftLeft'] ) {
         damping = 0.;
-        hud.innerHTML = `JUICE: ${juiceDisplay}`;
+        hudText += `JUICE: ${juiceDisplay}`;
     } else {
-        hud.innerHTML = `Juice: ${juiceDisplay}`;
+        hudText += `Juice: ${juiceDisplay}`;
     }
+
+    hudText += `<br>Badjos remaining: ` + gameState.getBaddiesRemaining();
+
+    hud.innerHTML = hudText;
 
     localplayer.velocity.addScaledVector( localplayer.velocity, damping );
 
@@ -901,15 +935,17 @@ function playerSphereCollision( player, sphere, isBaddie = false) {
 
             playHitSoundAt(sphere_center);
 
+            if (isBaddie) {
+                player.health -= 100;
+            }
+            else {
+                player.health -= 10;
+            }
+
             const d = ( r - Math.sqrt( d2 ) ) / 2;
             sphere_center.addScaledVector( normal, - d );
-
-            
-
         }
-
     }
-
 }
 
 function spheresCollisions() {
@@ -951,43 +987,6 @@ function spheresCollisions() {
     }
 
 }
-
-/*
-function baddieCollisions() {
-
-for ( let i = 0, length = baddies.length; i < length; i ++ ) {
-
-    const s1 = baddies[ i ];
-
-    for ( let j = i + 1; j < length; j ++ ) {
-
-        const s2 = baddies[ j ];
-
-        const d2 = s1.collider.center.distanceToSquared( s2.collider.center );
-        const r = s1.collider.radius + s2.collider.radius;
-        const r2 = r * r;
-
-        if ( d2 < r2 ) {
-
-            const normal = vector1.subVectors( s1.collider.center, s2.collider.center ).normalize();
-            const v1 = vector2.copy( normal ).multiplyScalar( normal.dot( s1.velocity ) );
-            const v2 = vector3.copy( normal ).multiplyScalar( normal.dot( s2.velocity ) );
-
-            s1.velocity.add( v2 ).sub( v1 );
-            s2.velocity.add( v1 ).sub( v2 );
-
-            const d = ( r - Math.sqrt( d2 ) ) / 2;
-
-            s1.collider.center.addScaledVector( normal, d );
-            s2.collider.center.addScaledVector( normal, - d );
-
-        }
-
-    }
-
-}
-}
-*/
 
 function updateSpheres( deltaTime ) {
 
@@ -1040,7 +1039,6 @@ function updateSpheres( deltaTime ) {
 
 }
 
-const baddieLookAt = new THREE.Vector3();
 function updateBaddies( deltaTime ) {
 
     if (!baddyMesh) return;
@@ -1049,27 +1047,54 @@ function updateBaddies( deltaTime ) {
 
     for(let i = 0; i < NUM_BADDIES; i++) {
         let badjo = baddies[i];
-        // Accumulate velocity sources 
-        playerCollisions(badjo, true);
 
-        baddieLookAt.copy(localplayer.collider.end);
-        baddieLookAt.subVectors(localplayer.collider.end, badjo.collider.center);
-        baddieLookAt.normalize();
+        if (!badjo.active) continue;
 
-        badjo.velocity.addScaledVector(baddieLookAt, deltaTime * 5);
+        if (badjo.health <= 0 && badjo.active) {
+            badjo.kill(true);   // tell the world about our kill
+            if (gameState.getBaddiesRemaining() > NUM_BADDIES) {
+                badjo.revive(true); // tell the world about our mercy
+            }
+        }
+        else {
+            // Accumulate velocity sources 
+            playerCollisions(badjo, true);
 
-        // Apply velocity to position of collider
-        const deltaPosition = badjo.velocity.clone().multiplyScalar( deltaTime );
-        badjo.collider.translate( deltaPosition );
+            baddieLookAt.copy(localplayer.collider.end);
+            baddieLookAt.subVectors(localplayer.collider.end, badjo.collider.center);
+            baddieLookAt.normalize();
+
+            badjo.velocity.addScaledVector(baddieLookAt, deltaTime * 5);
+
+            // Apply velocity to position of collider
+            const deltaPosition = badjo.velocity.clone().multiplyScalar( deltaTime );
+            badjo.collider.translate( deltaPosition );
+
+            if (badjo.collider.center.y <= WATER_PLANE_HEIGHT) {
+                badjo.kill(true);
+                if (gameState.getBaddiesRemaining() > NUM_BADDIES) {
+                    badjo.revive(true); // tell the world about our mercy
+                }
+            }
+        }
+        
 
         // Set instance mesh position to collider's position
         baddyDummy.position.set(...badjo.collider.center);
         baddyDummy.lookAt(localplayer.collider.end);
         baddyDummy.updateMatrix();
         baddyMesh.setMatrixAt(i, baddyDummy.matrix);
+
+        if (badjo.health < 100) 
+        {
+            let t = (100 - badjo.health) / 100;
+            baddieCurrentColor.lerpColors(baddieFullColor, baddieDeadColor, t);
+            baddyMesh.setColorAt(i, baddieCurrentColor);
+        }
     }
 
     baddyMesh.instanceMatrix.needsUpdate = true;
+    baddyMesh.instanceColor.needsUpdate = true;
 
     /*
     baddies.forEach( baddie => {
