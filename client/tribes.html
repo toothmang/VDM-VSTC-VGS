@@ -161,8 +161,10 @@ loader.load( './SimpleSkinning.gltf', (gltf) => {
     loadBaddies();
 });
 
-var baddieGeometry = new THREE.IcosahedronGeometry( PLAYER_RADIUS, 5 );
-const NUM_BADDIES = 2;
+//var baddieGeometry = new THREE.IcosahedronGeometry( PLAYER_RADIUS, 5 );
+const baddyDummy = new THREE.Object3D();
+const NUM_BADDIES = 200;
+var baddyMesh;
 var baddieIdx = 0;
 var baddies = [];
 
@@ -221,8 +223,12 @@ function loadBaddies() {
 
     let badStuff = baddie.scene;
 
+    let baddieMeshLocal, baddieMaterialLocal;
+
     baddie.scene.traverse( function ( child ) {
         if ( child.isMesh ) {
+            baddieMeshLocal = child;
+            baddieMaterialLocal = child.material;
             badStuff = child;
             child.castShadow = true;
             child.receiveShadow = true;
@@ -233,6 +239,25 @@ function loadBaddies() {
         }
     } );
 
+    baddyMesh = new THREE.InstancedMesh(baddieMeshLocal.geometry, baddieMaterialLocal, NUM_BADDIES);
+    baddyMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+
+    let px, py, pz;
+    for(let i = 0; i < NUM_BADDIES; i++) {
+        px = THREE.MathUtils.randFloat(-50, 50);
+        py = THREE.MathUtils.randFloat(0, 25);
+        pz = THREE.MathUtils.randFloat(-50, 50);
+        baddies.push([px, py, pz]);
+        baddyDummy.position.set(px, py, pz);
+        baddyDummy.updateMatrix();
+
+        baddyMesh.setMatrixAt(i, baddyDummy.matrix);
+    }
+    scene.add(baddyMesh);
+
+    baddyMesh.instanceMatrix.needsUpdate = true;
+
+    /*
     const badboi = badStuff.clone();
     //badboi.scale.set(0.1, 0.1, 0.1);
     //badboi.position.set(0, -100, 0);
@@ -277,6 +302,7 @@ function loadBaddies() {
             velocity: new THREE.Vector3()
         } );
     }
+    */
 
 });   
 }
@@ -859,8 +885,24 @@ function updateSpheres( deltaTime ) {
 
 }
 
+const baddiePos = new THREE.Vector3();
 function updateBaddies( deltaTime ) {
 
+    if (!baddyMesh) return;
+    for(let i = 0; i < NUM_BADDIES; i++) {
+        //baddyMesh.getMatrixAt(i, baddyDummy.matrix);
+        let dim = THREE.MathUtils.randInt(0, 2);
+        let speed = THREE.MathUtils.randFloat(-4, 4);
+        baddies[i][dim] += speed * deltaTime;
+        baddyDummy.position.set(...baddies[i]);
+        baddyDummy.lookAt(localplayer.collider.end);
+        baddyDummy.updateMatrix();
+        baddyMesh.setMatrixAt(i, baddyDummy.matrix);
+    }
+
+    baddyMesh.instanceMatrix.needsUpdate = true;
+
+    /*
     baddies.forEach( baddie => {
         baddie.mesh.lookAt (localplayer.collider.end);
         /*
@@ -889,9 +931,10 @@ function updateBaddies( deltaTime ) {
         
 
         playerSphereCollision( localplayer, baddie );
-        */
+        
 
     } );
+    */
 
     //baddieCollisions();
 
