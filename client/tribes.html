@@ -125,15 +125,17 @@ const playerMixers = [];
 let animation = null;
 let playerSphereIdx = 0;
 
+let pantsGeometry = null;
+let pantsSkinnedMesh = null;
+let pantsAnimation = null;
+
 
 const loader = new GLTFLoader().setPath( './assets/models/' );
 
 loader.load( './SimpleSkinning.gltf', (gltf) => {
-    scene.add( gltf.scene );
-
     //gltf.position.set(0, -100, 0);
 
-    let pantsGeometry = gltf.scene;
+    
 
     gltf.scene.traverse( function ( child ) {
         if ( child.isSkinnedMesh ) {
@@ -143,9 +145,142 @@ loader.load( './SimpleSkinning.gltf', (gltf) => {
     } );
 
     let mixer = new THREE.AnimationMixer( gltf.scene );
-    mixer.clipAction( gltf.animations[ 0 ] ).play();
+    pantsAnimation = gltf.animations[0];
+    mixer.clipAction( pantsAnimation ).play();
     playerMixers.push(mixer);
+
+    let pantsGroup = new THREE.Group();
+    pantsGroup.add(gltf.scene);
+    pantsGroup.position.set(0.9, -1, 0);
+    pantsGeometry = pantsGroup;
+    pantsSkinnedMesh = gltf.scene;
+
+    scene.add( pantsGroup );
+
+
+    loadBaddies();
 });
+
+var baddieGeometry = new THREE.IcosahedronGeometry( PLAYER_RADIUS, 5 );
+const NUM_BADDIES = 2;
+var baddieIdx = 0;
+var baddies = [];
+
+const cloneGltf = (gltf) => {
+  const clone = {
+    animations: gltf.animations,
+    scene: gltf.scene.clone(true)
+  };
+
+  const skinnedMeshes = {};
+
+  gltf.scene.traverse(node => {
+    if (node.isSkinnedMesh) {
+      skinnedMeshes[node.name] = node;
+    }
+  });
+
+  const cloneBones = {};
+  const cloneSkinnedMeshes = {};
+
+  clone.scene.traverse(node => {
+    if (node.isBone) {
+      cloneBones[node.name] = node;
+    }
+
+    if (node.isSkinnedMesh) {
+      cloneSkinnedMeshes[node.name] = node;
+    }
+  });
+
+  for (let name in skinnedMeshes) {
+    const skinnedMesh = skinnedMeshes[name];
+    const skeleton = skinnedMesh.skeleton;
+    const cloneSkinnedMesh = cloneSkinnedMeshes[name];
+
+    const orderedCloneBones = [];
+
+    for (let i = 0; i < skeleton.bones.length; ++i) {
+      const cloneBone = cloneBones[skeleton.bones[i].name];
+      orderedCloneBones.push(cloneBone);
+    }
+
+    cloneSkinnedMesh.bind(
+        new THREE.Skeleton(orderedCloneBones, skeleton.boneInverses),
+        cloneSkinnedMesh.matrixWorld);
+  }
+
+  return clone;
+}
+
+function loadBaddies() {
+    loader.load( './baddie.glb', (baddie) => {
+    //scene.add( baddie.scene );
+
+    //gltf.position.set(0, -100, 0);
+
+    let badStuff = baddie.scene;
+
+    baddie.scene.traverse( function ( child ) {
+        if ( child.isMesh ) {
+            badStuff = child;
+            child.castShadow = true;
+            child.receiveShadow = true;
+
+            if ( child.material.map ) {
+                child.material.map.anisotropy = 4;
+            }
+        }
+    } );
+
+    const badboi = badStuff.clone();
+    //badboi.scale.set(0.1, 0.1, 0.1);
+    //badboi.position.set(0, -100, 0);
+
+    const badGroup = new THREE.Group();
+    badGroup.add(badboi);
+
+    let clonedPants = clone(pantsSkinnedMesh);
+    //scene.add(clonedPants);
+
+    let pantsGroup = new THREE.Group();
+    pantsGroup.add(clonedPants);
+    pantsGroup.position.set(0.9, -1, 0);
+    scene.add(pantsGroup);
+
+    badGroup.add(pantsGroup);
+
+    //badboi.add(pantsGeometry);
+
+    scene.add( badGroup );
+
+    let mixer = new THREE.AnimationMixer( clonedPants );
+    mixer.clipAction( pantsAnimation ).play();
+    playerMixers.push(mixer);
+
+    baddies.push( {
+            mesh: badGroup,
+            collider: new THREE.Sphere( new THREE.Vector3( 0, - 100, 0 ), PLAYER_RADIUS ),
+            velocity: new THREE.Vector3()
+        } );
+    
+    for ( let i = 0; i < NUM_BADDIES; i ++ ) {
+        const bg = badGroup.clone();
+
+        //bg.position.set(0, -100, 0);
+
+        scene.add( bg );
+
+        baddies.push( {
+            mesh: bg,
+            collider: new THREE.Sphere( new THREE.Vector3( 0, - 100, 0 ), PLAYER_RADIUS ),
+            velocity: new THREE.Vector3()
+        } );
+    }
+
+});   
+}
+
 
 for ( let i = 0; i < NUM_PLAYERS; i ++ ) {
     const ps = new THREE.Mesh( playerGeometry, playerMaterial.clone() );
@@ -184,7 +319,7 @@ for ( let i = 0; i < NUM_PLAYERS; i ++ ) {
         collider: new THREE.Sphere( new THREE.Vector3( 0, - 100, 0 ), PLAYER_RADIUS ),
         velocity: new THREE.Vector3()
     } );
-    }
+}
 
 
 
@@ -644,6 +779,42 @@ function spheresCollisions() {
 
 }
 
+function baddieCollisions() {
+
+for ( let i = 0, length = baddies.length; i < length; i ++ ) {
+
+    const s1 = baddies[ i ];
+
+    for ( let j = i + 1; j < length; j ++ ) {
+
+        const s2 = baddies[ j ];
+
+        const d2 = s1.collider.center.distanceToSquared( s2.collider.center );
+        const r = s1.collider.radius + s2.collider.radius;
+        const r2 = r * r;
+
+        if ( d2 < r2 ) {
+
+            const normal = vector1.subVectors( s1.collider.center, s2.collider.center ).normalize();
+            const v1 = vector2.copy( normal ).multiplyScalar( normal.dot( s1.velocity ) );
+            const v2 = vector3.copy( normal ).multiplyScalar( normal.dot( s2.velocity ) );
+
+            s1.velocity.add( v2 ).sub( v1 );
+            s2.velocity.add( v1 ).sub( v2 );
+
+            const d = ( r - Math.sqrt( d2 ) ) / 2;
+
+            s1.collider.center.addScaledVector( normal, d );
+            s2.collider.center.addScaledVector( normal, - d );
+
+        }
+
+    }
+
+}
+
+}
+
 function updateSpheres( deltaTime ) {
 
     spheres.forEach( sphere => {
@@ -685,6 +856,52 @@ function updateSpheres( deltaTime ) {
         sphere.mesh.position.copy( sphere.collider.center );
 
     }
+
+}
+
+function updateBaddies( deltaTime ) {
+
+    baddies.forEach( baddie => {
+        baddie.mesh.lookAt (localplayer.collider.end);
+        /*
+        baddie.collider.center.addScaledVector( baddie.velocity, deltaTime );
+
+        const result = worldOctree.sphereIntersect( baddie.collider );
+
+        if ( result ) {
+
+            baddie.velocity.addScaledVector( result.normal, - result.normal.dot( baddie.velocity ) * 1.5 );
+            baddie.collider.center.add( result.normal.multiplyScalar( result.depth ) );
+
+        } else {
+
+            baddie.velocity.y -= GRAVITY * deltaTime;
+
+        }
+
+        const damping = Math.exp( - 1.5 * deltaTime ) - 1;
+        baddie.velocity.addScaledVector( baddie.velocity, damping );
+
+        
+        players.forEach(player => {
+            playerSphereCollision( player, sphere );
+        })
+        
+
+        playerSphereCollision( localplayer, baddie );
+        */
+
+    } );
+
+    //baddieCollisions();
+
+    /*
+    for ( const baddie of baddies ) {
+
+        baddie.mesh.position.copy( baddie.collider.center );
+
+    }
+    */
 
 }
 
@@ -812,6 +1029,21 @@ loader.load( 'haus2x.gltf.glb', ( gltf ) => {
         .onChange ( function (value) {
             localplayer.color = value;
         })
+    const bp = gui.addFolder("baddie position");
+    bp.add( { x : 0}, 'x')
+        .onChange(function(value) {
+            baddies[0].mesh.position.setComponent(0, value);
+        });
+    bp.add( { y : 0}, 'y')
+        .onChange(function(value) {
+            baddies[0].mesh.position.setComponent(1, value);
+        });
+
+    bp.add( { z : 0}, 'z')
+        .onChange(function(value) {
+            baddies[0].mesh.position.setComponent(2, value);
+        });
+
 
 
 
@@ -849,6 +1081,8 @@ function animate() {
         updateRemotePlayers( deltaTime );
 
         updateSpheres( deltaTime );
+
+        updateBaddies(deltaTime);
 
         teleportPlayerIfOob();
 
