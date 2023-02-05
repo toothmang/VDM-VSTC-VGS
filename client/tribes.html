@@ -114,6 +114,12 @@ const STEPS_PER_FRAME = 5;
 
 const WATER_PLANE_HEIGHT = -15;
 
+const WALKER_SPAWN_RADIUS = 60;
+const WALKER_SPAWN_SPEED = 150;
+const WALKER_SPAWN_ANGLE = 75 * Math.PI / 180;
+const WALKER_GRAV_MULTIPLIER = 4;
+const WALKER_PERCENT_CHANCE = 75;
+
 const sphereGeometry = new THREE.IcosahedronGeometry( SPHERE_RADIUS, 5 );
 const sphereMaterial = new THREE.MeshLambertMaterial( { color: 0xbbbb44 } );
 
@@ -248,7 +254,7 @@ loader.load( './SimpleSkinning.gltf', (gltf) => {
 
 //var baddieGeometry = new THREE.IcosahedronGeometry( PLAYER_RADIUS, 5 );
 const baddyDummy = new THREE.Object3D();
-const NUM_BADDIES = 20;
+const NUM_BADDIES = 200;
 const BADDIE_SPEED = 10;
 var baddiesToKill = NUM_BADDIES;
 var baddiesKilled = 0;
@@ -299,6 +305,7 @@ function loadBaddies() {
             velocity: new THREE.Vector3(),
             active: true,
             health: 100,
+            flies: false,
             kill: function(send = false) {
                 this.active = false;
                 this.health = 0;
@@ -314,7 +321,32 @@ function loadBaddies() {
             revive: function(send = false) {
                 this.active = true;
                 this.health = 100;
-                this.position = [THREE.MathUtils.randFloat(-50, 50), THREE.MathUtils.randFloat(0, 25), THREE.MathUtils.randFloat(-50, 50) ];
+                this.flies = THREE.MathUtils.randFloat(0.,100.) < WALKER_PERCENT_CHANCE;
+
+                if (this.flies) {
+                    let rad = 50.;
+                    this.position = [THREE.MathUtils.randFloat(-rad, rad), THREE.MathUtils.randFloat(0, 25), THREE.MathUtils.randFloat(-rad, rad) ];
+                    this.velocity = new THREE.Vector3();
+                } else {
+                    //let heading = THREE.MathUtils.randFloat(0., 2*Math.PI);
+                    let heading = THREE.MathUtils.randFloat(0., 0.3) - 0.15 - Math.PI/2;
+                    let c = Math.cos(heading);
+                    let s = Math.sin(heading);
+
+                    let sx = c * WALKER_SPAWN_RADIUS;
+                    let sy = WATER_PLANE_HEIGHT + 5;
+                    let sz = s * WALKER_SPAWN_RADIUS;
+
+                    let rise = Math.sin(WALKER_SPAWN_ANGLE) * WALKER_SPAWN_SPEED;
+                    let run  = Math.cos(WALKER_SPAWN_ANGLE) * WALKER_SPAWN_SPEED;
+
+                    let vx = -c * run;
+                    let vy = rise;
+                    let vz = -s * run;
+
+                    this.position = [sx, sy, sz];
+                    this.velocity = new THREE.Vector3(vx, vy, vz);
+                }
 
                 //console.log(`Setting baddie ${this.index}'s position to ${this.position}`);
                 this.collider.center.set(...this.position);
@@ -1014,6 +1046,10 @@ function updateSpheres( deltaTime ) {
             sphere.active = false;
             return;
         }
+        // if ((200 * 200) < sphere.collider.center.lengthSq()) {
+        //     sphere.active = false;
+        //     return;
+        // }
 
         const result = worldOctree.sphereIntersect( sphere.collider );
 
@@ -1061,7 +1097,7 @@ function updateBaddies( deltaTime ) {
 
     if (!baddyMesh) return;
 
-
+    let damping = Math.exp( - 4 * deltaTime ) - 1;
 
     for(let i = 0; i < NUM_BADDIES; i++) {
         let badjo = baddies[i];
@@ -1070,7 +1106,7 @@ function updateBaddies( deltaTime ) {
 
         if (badjo.health <= 0 && badjo.active) {
             badjo.kill(true);   // tell the world about our kill
-            if (gameState.getBaddiesRemaining() > NUM_BADDIES) {
+            if (gameState.getBaddiesRemaining() < NUM_BADDIES) {
                 badjo.revive(true); // tell the world about our mercy
             }
         }
@@ -1083,7 +1119,14 @@ function updateBaddies( deltaTime ) {
             baddieLookAt.normalize();
             baddieLookAt.multiplyScalar(BADDIE_SPEED);
 
-            badjo.velocity.copy(baddieLookAt);
+            if (badjo.flies)
+                badjo.velocity.copy(baddieLookAt);
+            else
+                badjo.velocity.addScaledVector(baddieLookAt, deltaTime * 5);
+
+            badjo.velocity.addScaledVector( badjo.velocity, damping );
+
+
 
             //badjo.velocity.addScaledVector(baddieLookAt, deltaTime * 5);
 
@@ -1096,6 +1139,18 @@ function updateBaddies( deltaTime ) {
                 if (gameState.getBaddiesRemaining() > NUM_BADDIES) {
                     badjo.revive(true); // tell the world about our mercy
                 }
+            }
+
+            const result = worldOctree.sphereIntersect( badjo.collider );
+
+            if ( result ) {
+
+                badjo.velocity.addScaledVector( result.normal, - result.normal.dot( badjo.velocity ) * 1.5 );
+                badjo.collider.center.add( result.normal.multiplyScalar( result.depth ) );
+
+            } else {
+                // These guys are wicked floaty!
+                if (!badjo.flies)  badjo.velocity.y -= GRAVITY * WALKER_GRAV_MULTIPLIER * deltaTime;
             }
         }
 
