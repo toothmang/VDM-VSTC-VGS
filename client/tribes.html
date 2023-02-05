@@ -1,4 +1,3 @@
-<!DOCTYPE html>
 <html lang="en">
 	<head>
 		<title>three.js - misc - octree collisions</title>
@@ -872,6 +871,12 @@ function updateLocalPlayer( deltaTime ) {
     }
 
     hudText += `<br>Badjos remaining: ` + gameState.getBaddiesRemaining();
+    hudText += `<br>Waves cleared: ${gameState.wavesCleared}`;
+    //if (gameState.clearedIn > 0) 
+    {
+        hudText += `<br>Last wave cleared in: ` + gameState.clearedIn.toFixed(2) + " s";
+    }
+    
 
     hud.innerHTML = hudText;
 
@@ -1083,7 +1088,7 @@ function updateBaddies( deltaTime ) {
 
             badjo.velocity.copy(baddieLookAt);
 
-            //badjo.velocity.addScaledVector(baddieLookAt, deltaTime * 5);
+            //badjo.velocity.addScaledVector(baddieLookAt, deltaTime);
 
             // Apply velocity to position of collider
             const deltaPosition = badjo.velocity.clone().multiplyScalar( deltaTime );

@@ -107,6 +107,7 @@ var gameserver = {
 
     if (this.gamestate.isClear()) {
       this.gamestate.nextLevel();
+      console.log("Last wave cleared in " + this.gamestate.clearedIn);
       channel.room.emit('nextLevel', this.gamestate);
     }
     else {

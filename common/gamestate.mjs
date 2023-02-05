@@ -4,6 +4,8 @@ class gamestate {
         this.baddiesToKill = baddiesToKill;
         this.baddiesKilled = 0;
         this.seed = seed;
+        this.startedAt = performance.now();
+        this.clearedIn = 0;
     }
 
     getBaddiesRemaining() {
@@ -22,6 +24,9 @@ class gamestate {
         this.baddiesKilled = 0;
         this.baddiesToKill = Math.round(this.baddiesToKill * 1.5);
         this.wavesCleared++;
+        let nowish = performance.now();
+        this.clearedIn = (nowish - this.startedAt) / 1000.0;
+        this.startedAt = nowish;
     }
 
     set(gs) {
@@ -29,6 +34,8 @@ class gamestate {
         this.baddiesToKill = gs.baddiesToKill;
         this.baddiesKilled = gs.baddiesKilled;
         this.seed = gs.seed;
+        this.startedAt = gs.startedAt;
+        this.clearedIn = gs.clearedIn;
 
     }
 }
