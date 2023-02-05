@@ -124,6 +124,7 @@ for ( let i = 0; i < NUM_SPHERES; i ++ ) {
     spheres.push( {
         mesh: sphere,
         collider: new THREE.Sphere( new THREE.Vector3( 0, - 100, 0 ), SPHERE_RADIUS ),
+        active: false,
         velocity: new THREE.Vector3()
     } );
 }
@@ -696,6 +697,7 @@ function onWindowResize() {
 function throwBall(player) {
 
     const sphere = spheres[ sphereIdx ];
+    sphere.active = true;
 
     sphere.mesh.material.color.set(player.color);
 
@@ -885,9 +887,13 @@ function spheresCollisions() {
 
         const s1 = spheres[ i ];
 
+        if (!s1.active) continue;
+
         for ( let j = i + 1; j < length; j ++ ) {
 
             const s2 = spheres[ j ];
+
+            if (!s2.active) continue;
 
             const d2 = s1.collider.center.distanceToSquared( s2.collider.center );
             const r = s1.collider.radius + s2.collider.radius;
@@ -915,6 +921,7 @@ function spheresCollisions() {
 
 }
 
+/*
 function baddieCollisions() {
 
 for ( let i = 0, length = baddies.length; i < length; i ++ ) {
@@ -948,14 +955,19 @@ for ( let i = 0, length = baddies.length; i < length; i ++ ) {
     }
 
 }
-
 }
+*/
 
 function updateSpheres( deltaTime ) {
 
     spheres.forEach( sphere => {
-
+        if (!sphere.active) return;
         sphere.collider.center.addScaledVector( sphere.velocity, deltaTime );
+
+        if (sphere.collider.center.y < WATER_PLANE_HEIGHT) {
+            sphere.active = false;
+            return;
+        }
 
         const result = worldOctree.sphereIntersect( sphere.collider );
 
