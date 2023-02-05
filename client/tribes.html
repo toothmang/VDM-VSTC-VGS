@@ -529,8 +529,14 @@ function updateLocalPlayer( deltaTime ) {
 
     let juiceDisplay = Math.floor(localplayer.jetjuice);
 
-    hud.innerHTML = `Juice: ${juiceDisplay}`;
+    //hud.innerHTML = `Juice: ${juiceDisplay}`;
 
+    if ( keyStates['ShiftLeft'] ) {
+        damping = 0.;
+        hud.innerHTML = `JUICE: ${juiceDisplay}`;
+    } else {
+        hud.innerHTML = `Juice: ${juiceDisplay}`;
+    }
 
     localplayer.velocity.addScaledVector( localplayer.velocity, damping );
 
