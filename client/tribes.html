@@ -917,7 +917,7 @@ function updateRemotePlayers( deltaTime ) {
     }
 }
 
-function playerSphereCollision( player, sphere, isBaddie = false) {
+function playerSphereCollision( player, sphere, isBaddie = false, isSphereBaddie = false) {
 
     let center;
     let points = [];
@@ -959,6 +959,9 @@ function playerSphereCollision( player, sphere, isBaddie = false) {
             }
             else {
                 player.health -= 10;
+                if (isSphereBaddie) {
+                    sphere.health -= 100;
+                }
             }
 
             const d = ( r - Math.sqrt( d2 ) ) / 2;
@@ -1082,6 +1085,8 @@ function updateBaddies( deltaTime ) {
         else {
             // Accumulate velocity sources
             playerCollisions(badjo, true);
+
+            playerSphereCollision(localplayer, badjo, false, true);
 
             baddieLookAt.copy(localplayer.collider.end);
             baddieLookAt.subVectors(localplayer.collider.end, badjo.collider.center);
