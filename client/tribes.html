@@ -1129,12 +1129,14 @@ function updateRemotePlayers( deltaTime ) {
     }
 }
 
-function playerSphereCollision( player, sphere, isBaddie = false, isSphereBaddie = false) {
+function playerSphereCollision( player, sphere, isPlayerBaddie = false, isSphereBaddie = false) {
+
+    if (player.health <= 0) return;
 
     let center;
     let points = [];
-
-    if (isBaddie) {
+    if (isPlayerBaddie) {
+        if (!player.active) return;
         center = player.collider.center;
         points = [center];
     }
@@ -1166,7 +1168,7 @@ function playerSphereCollision( player, sphere, isBaddie = false, isSphereBaddie
 
 
 
-            if (isBaddie) {
+            if (isPlayerBaddie) {
                 player.health -= 34;
                 playHitSoundAt(sphere_center);
             }
@@ -1271,6 +1273,7 @@ function updateSpheres( deltaTime ) {
         playerSphereCollision( localplayer, sphere );
 
         baddies.forEach(baddie => {
+            if (!baddie.active) return;
             playerSphereCollision(baddie, sphere, true);
         });
 
