@@ -5,7 +5,7 @@
 
 Our roots are where we find our tribes. And for us, Tribes is where we found our roots.
 
-For Global Game Jam '23, we used [https://threejs.org/](three.js) and [https://geckos.io/](geckos.io) to make a real-time multiplayer shooter (big surprise for Team 2THS1M 😉). 
+For Global Game Jam '23, we used [three.js](https://threejs.org/) and [geckos.io](https://geckos.io/) to make a real-time multiplayer shooter (big surprise for Team 2THS1M 😉). 
 
 ## Setup
 After cloning the repo to a working folder:
