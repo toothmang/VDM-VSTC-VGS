@@ -101,6 +101,9 @@ const PLAYER_RADIUS = 0.4;
 const playerGeometry = new THREE.IcosahedronGeometry( PLAYER_RADIUS, 5 );
 const playerMaterial = new THREE.MeshLambertMaterial( { color: 0x44aa22 } );
 
+const BALL_REFIRE_RATE = 0.100; // 100 ms
+let time_since_last_ball = 0;
+
 const spheres = [];
 let sphereIdx = 0;
 
@@ -147,9 +150,9 @@ function setPlayerRefresh(newRate) {
     }
 
     playerRefresh = setInterval(() => {
-        //if (playerPos[0] != lastPlayerPos[0] || playerPos[1] != lastPlayerPos[1]) 
+        //if (playerPos[0] != lastPlayerPos[0] || playerPos[1] != lastPlayerPos[1])
         /*
-        if (true) 
+        if (true)
         {
             setplayer(playerPos[0], playerPos[1]);
             lastPlayerPos[0] = playerPos[0];
@@ -163,7 +166,7 @@ function setPlayerRefresh(newRate) {
             channel.emit('setplayer', c);
             channel.emit("getplayers", true);
         }
-        
+
     }, refreshRate);
 }
 
@@ -212,10 +215,10 @@ function establishChannel() {
 
 function makeLocalPlayer() {
     localplayer = {
-        collider: new Capsule( 
+        collider: new Capsule(
             new THREE.Vector3( 0, 0.35, 0 ),    // start
             new THREE.Vector3( 0, 1, 0 ),       // end
-            0.35 ),                             // radius 
+            0.35 ),                             // radius
         velocity: new THREE.Vector3(),
         direction: new THREE.Vector3(),
         onFloor: false,
@@ -242,6 +245,7 @@ let playerOnFloor = false;
 let mouseTime = 0;
 
 const keyStates = {};
+const mouseStates = {};
 
 const vector1 = new THREE.Vector3();
 const vector2 = new THREE.Vector3();
@@ -259,17 +263,24 @@ document.addEventListener( 'keyup', ( event ) => {
 
 } );
 
-container.addEventListener( 'mousedown', () => {
+container.addEventListener( 'mousedown', (event) => {
+
+    mouseStates[ event.button ] = true;
 
     document.body.requestPointerLock();
 
     mouseTime = performance.now();
 
+    mouseStates[ event.button ] = true;
 } );
 
-document.addEventListener( 'mouseup', () => {
+document.addEventListener( 'mouseup', (event) => {
 
-    if ( document.pointerLockElement !== null ) throwBall(localplayer);
+    if ( document.pointerLockElement !== null )
+      if ( event.button == 2 )
+        throwBall(localplayer);
+
+    mouseStates[ event.button ] = false;
 
 } );
 
@@ -472,7 +483,7 @@ function updateSpheres( deltaTime ) {
 
         playerSphereCollision( localplayer, sphere );
 
-        
+
 
     } );
 
@@ -512,6 +523,8 @@ function controls( deltaTime ) {
     // gives a bit of air control
     const speedDelta = deltaTime * ( localplayer.onFloor ? 25 : 8 );
 
+    time_since_last_ball += deltaTime;
+
     if ( keyStates[ 'KeyW' ] ) {
 
         localplayer.velocity.add( getForwardVector(localplayer).multiplyScalar( speedDelta ) );
@@ -544,6 +557,13 @@ function controls( deltaTime ) {
 
         }
 
+    }
+
+    if ( mouseStates[3] ) {
+      if ( BALL_REFIRE_RATE < time_since_last_ball ) {
+        time_since_last_ball = 0.;
+        throwBall(localplayer);
+      }
     }
 
 }
