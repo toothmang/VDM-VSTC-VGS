@@ -321,7 +321,7 @@ function loadBaddies() {
         pz = THREE.MathUtils.randFloat(-50, 50);
         baddies.push( {
             position: [px, py, pz],
-            collider: new THREE.Sphere( new THREE.Vector3( px, py, pz ), PLAYER_RADIUS ),
+            collider: new THREE.Sphere( new THREE.Vector3( px, py, pz ), PLAYER_RADIUS * 3),
             velocity: new THREE.Vector3()
         });
         baddyDummy.position.set(px, py, pz);
@@ -716,9 +716,15 @@ function throwBall(player) {
 
 }
 
-function playerCollisions(player) {
+function playerCollisions(player, isBaddie = false) {
 
-    const result = worldOctree.capsuleIntersect( player.collider );
+    let result;
+    if (isBaddie) {
+        result = worldOctree.sphereIntersect(player.collider);
+    }
+    else {
+        result = worldOctree.capsuleIntersect( player.collider );
+    }
 
     player.onFloor = false;
 
@@ -994,7 +1000,7 @@ function updateSpheres( deltaTime ) {
 
 }
 
-const baddiePos = new THREE.Vector3();
+const baddieLookAt = new THREE.Vector3();
 function updateBaddies( deltaTime ) {
 
     if (!baddyMesh) return;
@@ -1002,14 +1008,22 @@ function updateBaddies( deltaTime ) {
 
 
     for(let i = 0; i < NUM_BADDIES; i++) {
+        let badjo = baddies[i];
+        // Accumulate velocity sources 
+        playerCollisions(badjo, true);
 
-        const deltaPosition = baddies[i].velocity.clone().multiplyScalar( deltaTime );
-        baddies[i].collider.translate( deltaPosition );
-        //baddyMesh.getMatrixAt(i, baddyDummy.matrix);
-        let dim = THREE.MathUtils.randInt(0, 2);
-        let speed = THREE.MathUtils.randFloat(-4, 4);
-        baddies[i][dim] += speed * deltaTime;
-        baddyDummy.position.set(...baddies[i].collider.center);
+        baddieLookAt.copy(localplayer.collider.end);
+        baddieLookAt.subVectors(localplayer.collider.end, badjo.collider.center);
+        baddieLookAt.normalize();
+
+        badjo.velocity.addScaledVector(baddieLookAt, deltaTime * 5);
+
+        // Apply velocity to position of collider
+        const deltaPosition = badjo.velocity.clone().multiplyScalar( deltaTime );
+        badjo.collider.translate( deltaPosition );
+
+        // Set instance mesh position to collider's position
+        baddyDummy.position.set(...badjo.collider.center);
         baddyDummy.lookAt(localplayer.collider.end);
         baddyDummy.updateMatrix();
         baddyMesh.setMatrixAt(i, baddyDummy.matrix);
