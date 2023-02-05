@@ -111,12 +111,12 @@ const NUM_SPHERES = 100;
 const SPHERE_RADIUS = 0.2;
 const STEPS_PER_FRAME = 5;
 
-const WATER_PLANE_HEIGHT = -15;
+const WATER_PLANE_HEIGHT = -25;
 
 const WALKER_SPAWN_RADIUS = 60;
 const WALKER_SPAWN_SPEED = 150;
 const WALKER_SPAWN_ANGLE = 75 * Math.PI / 180;
-const WALKER_GRAV_MULTIPLIER = 4;
+const WALKER_GRAV_MULTIPLIER = 3; // >3 gets them stuck on uphill climbs :p
 const WALKER_PERCENT_CHANCE = 75;
 
 const sphereGeometry = new THREE.IcosahedronGeometry( SPHERE_RADIUS, 5 );
@@ -1136,8 +1136,6 @@ function updateBaddies( deltaTime ) {
 
             badjo.velocity.addScaledVector( badjo.velocity, damping );
 
-
-
             //badjo.velocity.addScaledVector(baddieLookAt, deltaTime);
 
             // Apply velocity to position of collider
@@ -1371,7 +1369,7 @@ function controls( deltaTime ) {
 
 var pause = false;
 
-loader.load( 'haus2x.gltf.glb', ( gltf ) => {
+loader.load( 'haus_rev2.gltf.glb', ( gltf ) => {
 
     scene.add( gltf.scene );
 
@@ -1384,10 +1382,10 @@ loader.load( 'haus2x.gltf.glb', ( gltf ) => {
             child.castShadow = true;
             child.receiveShadow = true;
 
-            child.material = new THREE.MeshPhongMaterial({
-                color: 0x4444BB,
-                flatShading: false
-            })
+            // child.material = new THREE.MeshPhongMaterial({
+            //     color: 0x4444BB,
+            //     flatShading: false
+            // })
 
             if ( child.material.map ) {
 
