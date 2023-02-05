@@ -111,7 +111,7 @@ const NUM_SPHERES = 100;
 const SPHERE_RADIUS = 0.2;
 const STEPS_PER_FRAME = 5;
 
-const WATER_PLANE_HEIGHT = -25;
+const WATER_PLANE_HEIGHT = -22;
 
 const WALKER_SPAWN_RADIUS = 60;
 const WALKER_SPAWN_SPEED = 150;
@@ -453,12 +453,12 @@ var discAnimation;
 
 function loadSpinDisc() {
     loader.load( './spindisc.glb', (spindisc) => {
-    
+
     //gltf.position.set(0, -100, 0);
 
     let spindiscMeshLocal, spindiscMaterialLocal;
 
-    
+
     spindiscMaterialLocal = new THREE.MeshPhysicalMaterial();
     spindiscMaterialLocal.reflectivity = 0.5;
     spindiscMaterialLocal.transmission = 0.5;
@@ -495,7 +495,7 @@ function loadSpinDisc() {
 
     /*
     loader.load( './tornadobullshit.glb', (tornado) => {
-    
+
     //gltf.position.set(0, -100, 0);
 
     tornado.scene.traverse( function ( child ) {
@@ -1118,7 +1118,7 @@ function playerSphereCollision( player, sphere, isBaddie = false, isSphereBaddie
             player.velocity.add( v2 ).sub( v1 );
             sphere.velocity.add( v1 ).sub( v2 );
 
-            
+
 
             if (isBaddie) {
                 player.health -= 34;
