@@ -41,6 +41,15 @@ import { Water } from 'three/addons/objects/Water.js';
 import { Sky } from 'three/addons/objects/Sky.js';
 import gamestate from "./common/gamestate.mjs";
 
+var pad = null;
+
+window.addEventListener("gamepadconnected", (e) => {
+    pad = e.gamepad;
+    console.log("Gamepad connected at index %d: %s. %d buttons, %d axes.",
+        e.gamepad.index, e.gamepad.id,
+        e.gamepad.buttons.length, e.gamepad.axes.length);
+});
+
 var gameState = new gamestate();
 
 const clock = new THREE.Clock();
@@ -240,6 +249,7 @@ loader.load( './SimpleSkinning.gltf', (gltf) => {
 //var baddieGeometry = new THREE.IcosahedronGeometry( PLAYER_RADIUS, 5 );
 const baddyDummy = new THREE.Object3D();
 const NUM_BADDIES = 20;
+const BADDIE_SPEED = 10;
 var baddiesToKill = NUM_BADDIES;
 var baddiesKilled = 0;
 var baddieLevelsCleared = 0;
@@ -306,7 +316,7 @@ function loadBaddies() {
                 this.health = 100;
                 this.position = [THREE.MathUtils.randFloat(-50, 50), THREE.MathUtils.randFloat(0, 25), THREE.MathUtils.randFloat(-50, 50) ];
 
-                console.log(`Setting baddie ${this.index}'s position to ${this.position}`);
+                //console.log(`Setting baddie ${this.index}'s position to ${this.position}`);
                 this.collider.center.set(...this.position);
 
                 baddyDummy.position.set(...this.position);
@@ -511,6 +521,7 @@ function getFakePlayerFire(f) {
             radius: PLAYER_RADIUS * 1.5
         },
         velocity: f.vel,
+        id: f.id,
         color: f.color
     }
 
@@ -625,6 +636,7 @@ function establishChannel(isDev = true) {
                     radius: PLAYER_RADIUS * 1.5
                 },
                 velocity: fvel,
+                id: data.id,
                 color: data.color
             });
 
@@ -760,6 +772,7 @@ function throwBall(player) {
 
     const sphere = spheres[ sphereIdx ];
     sphere.active = true;
+    sphere.id = player.id;
 
     sphere.mesh.material.color.set(player.color);
 
@@ -768,7 +781,7 @@ function throwBall(player) {
     // throw the ball with more force if we hold the button longer, and if we move forward
 
     //const impulse = 15 + 30 * ( 1 - Math.exp( ( mouseTime - performance.now() ) * 0.001 ) );
-    const impulse = 44;
+    const impulse = 91;
 
     sphere.velocity.copy( player.direction ).multiplyScalar( impulse );
     sphere.velocity.addScaledVector( player.velocity, 2 );
@@ -909,6 +922,7 @@ function playerSphereCollision( player, sphere, isBaddie = false) {
         points = [center];
     }
     else {
+        if (player.id == sphere.id) return;
         center = vector1.addVectors( player.collider.start, player.collider.end ).multiplyScalar( 0.5 );
         points =  [ player.collider.start, player.collider.end, center ];
     }
@@ -961,6 +975,8 @@ function spheresCollisions() {
             const s2 = spheres[ j ];
 
             if (!s2.active) continue;
+
+            if (s1.id == s2.id) continue;
 
             const d2 = s1.collider.center.distanceToSquared( s2.collider.center );
             const r = s1.collider.radius + s2.collider.radius;
@@ -1063,8 +1079,11 @@ function updateBaddies( deltaTime ) {
             baddieLookAt.copy(localplayer.collider.end);
             baddieLookAt.subVectors(localplayer.collider.end, badjo.collider.center);
             baddieLookAt.normalize();
+            baddieLookAt.multiplyScalar(BADDIE_SPEED);
 
-            badjo.velocity.addScaledVector(baddieLookAt, deltaTime * 5);
+            badjo.velocity.copy(baddieLookAt);
+
+            //badjo.velocity.addScaledVector(baddieLookAt, deltaTime * 5);
 
             // Apply velocity to position of collider
             const deltaPosition = badjo.velocity.clone().multiplyScalar( deltaTime );
@@ -1160,15 +1179,82 @@ function getSideVector(player) {
     player.direction.cross( camera.up );
 
     return player.direction;
+}
 
+function gamepadControls(deltaTime) {
+    //console.log(JSON.stringify(pad.buttons));
+    //console.log(JSON.stringify(pad.axes));
+
+    let deadzone = 0.2;
+
+    const speedDelta = deltaTime * ( localplayer.onFloor ? 25 : 8 );
+
+    if ( pad.axes[1] < -deadzone) 
+    {
+        localplayer.velocity.add( getForwardVector(localplayer).multiplyScalar( speedDelta ) );
+    }
+
+    if ( pad.axes[1] > deadzone) 
+    {
+        localplayer.velocity.add( getForwardVector(localplayer).multiplyScalar( - speedDelta ) );
+    }
+
+    if ( pad.axes[0] < -deadzone) 
+    {
+        localplayer.velocity.add( getSideVector(localplayer).multiplyScalar( - speedDelta ) );
+    }
+
+    if ( pad.axes[0] > deadzone) 
+    {
+        localplayer.velocity.add( getSideVector(localplayer).multiplyScalar( speedDelta ) );
+    }
+
+    if ( pad.buttons[6].pressed ) 
+    {
+        if ( localplayer.onFloor) {
+            localplayer.velocity.y = 15;
+        }
+        else {
+            localplayer.jetting = true;
+        }
+    }
+
+    if ( pad.buttons[7].pressed) 
+    {
+        if ( BALL_REFIRE_RATE < time_since_last_ball ) {
+            time_since_last_ball = 0.;
+
+            let f = GetLocalPlayerFire();
+            channel.emit('fire', f);
+            throwBall(getFakePlayerFire(f));
+        }
+    }
+
+    if (Math.abs(pad.axes[2]) > deadzone) {
+        camera.rotation.y -= pad.axes[2] / 250;
+    }
+    if (Math.abs(pad.axes[3]) > deadzone) {
+        camera.rotation.x -= pad.axes[3] / 250;
+    }
+    
 }
 
 function controls( deltaTime ) {
+
+
+
+    //Gamepads.update();
 
     // gives a bit of air control
     const speedDelta = deltaTime * ( localplayer.onFloor ? 25 : 8 );
 
     time_since_last_ball += deltaTime;
+
+    localplayer.jetting = false;
+
+    if (pad) {
+        gamepadControls(deltaTime);
+    }
 
     if ( keyStates[ 'KeyW' ] ) {
 
@@ -1202,9 +1288,6 @@ function controls( deltaTime ) {
             localplayer.jetting = true;
         }
     }
-    else {
-        localplayer.jetting = false;
-    }
 
     if ( mouseStates[0] ) {
       if ( BALL_REFIRE_RATE < time_since_last_ball ) {
@@ -1215,6 +1298,7 @@ function controls( deltaTime ) {
         throwBall(getFakePlayerFire(f));
       }
     }
+        
 
 }
 
@@ -1323,6 +1407,11 @@ function animate() {
 
     // we look for collisions in substeps to mitigate the risk of
     // an object traversing another too quickly for detection.
+
+    for(const p of navigator.getGamepads()) {
+        pad = p;
+        break;
+    }
 
     for ( let i = 0; i < STEPS_PER_FRAME; i ++ ) {
 
