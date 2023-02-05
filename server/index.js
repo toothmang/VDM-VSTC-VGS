@@ -38,11 +38,7 @@ var gameserver = {
     this.players[playerID] = {
       id: playerID,
       created: nowish,
-      pos: [0.0, 0.0, 0.0],
-      x: 0.0,
-      y: 0.0,
-      z: 0.0,
-      lastchanged: nowish
+      pos: [0.0, -100.0, 0.0]
     };
   },
 
@@ -56,7 +52,10 @@ var gameserver = {
   setplayer: function (channel, data) {
     let playerID = channel.id;
     let player = this.players[playerID];
-    player.pos = data;
+    player.pos = data.pos;
+    player.color = data.color;
+
+    channel.broadcast.emit('setplayer', player);
     
     if ('lagmebro' in data && data.lagmebro) {
       channel.emit('lagmebro', true);
@@ -73,6 +72,29 @@ var gameserver = {
     }
 
     channel.emit('getplayers', results);
+    //this.respond_with_data(res, results);
+  },
+
+  fire: function (channel, data) {
+    /*
+    let results = [];
+  
+    for(let p in this.players) {
+      results.push(this.players[p]);
+    }
+    */
+
+    channel.broadcast.emit('fire', data);
+
+    /*
+    for (let channelID in this.connections) {
+        if (channelID != channel.id) {
+            //console.log(`Sending ${channel.id}'s bullet over to ${channelID}`);
+            this.connections[channelID].emit('fire', data);
+        }
+    }
+    */
+
     //this.respond_with_data(res, results);
   }
 };
@@ -98,16 +120,23 @@ playerRouter.post('/', (req, res) => {
   }
 })
 
-const gio = geckos({
-  cors: {
-    origin: "https://2ths1m.com",
-    allowAuthorization: true
-  },
+var env = process.env.NODE_ENV || 'development';
+
+var geckosConfig = {
   portRange: {
     min: 5555,
     max: 5565
   }
-});
+};
+
+if (env == "production") {
+  geckosConfig.cors = {
+    origin: "https://2ths1m.com",
+    allowAuthorization: true
+  };
+}
+
+const gio = geckos(geckosConfig);
 
 gio.addServer(server);
 gio.onConnection (channel => {
@@ -138,6 +167,11 @@ gio.onConnection (channel => {
     //console.log("getting players");
     //channel.emit("getplayers", [{id: 1}]);
     gameserver.getplayers(channel, data);
+  })
+
+  channel.on('fire', function(data) {
+    //console.log('FIRE! ' + JSON.stringify(data));
+    gameserver.fire(channel, data);
   })
 
 });
