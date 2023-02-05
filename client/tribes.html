@@ -6,7 +6,7 @@
 		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
 		<link type="text/css" rel="stylesheet" href="main.css">
         <script src="./lib/geckos.io-client.2.3.0.min.js"></script>
-        
+
 	</head>
 	<body>
         <div id="hudbox">
@@ -399,7 +399,7 @@ function resetBaddies() {
         baddyMesh.instanceMatrix.needsUpdate = true;
         baddyMesh.instanceColor.needsUpdate = true;
     }
-    
+
 }
 
 
@@ -614,7 +614,7 @@ function establishChannel(isDev = true) {
         });
 
         channel.on('kill', function(data) {
-            baddies[data].kill(); 
+            baddies[data].kill();
         });
 
         channel.on('revive', function(data) {
@@ -798,7 +798,7 @@ function throwBall(player) {
             posSound2.stop();
             posSound2.play();
         }
-        
+
     }
 
     sphereIdx = ( sphereIdx + 1 ) % spheres.length;
@@ -1022,13 +1022,15 @@ function updateSpheres( deltaTime ) {
             sphere.velocity.addScaledVector( result.normal, - result.normal.dot( sphere.velocity ) * 1.5 );
             sphere.collider.center.add( result.normal.multiplyScalar( result.depth ) );
 
-        } else {
-
-            sphere.velocity.y -= GRAVITY * deltaTime;
-
         }
+        // else {
+        //
+        //     sphere.velocity.y -= GRAVITY * deltaTime;
+        //
+        // }
 
-        const damping = Math.exp( - 1.5 * deltaTime ) - 1;
+        // const damping = Math.exp( - 1.5 * deltaTime ) - 1;
+        const damping = 0;
         sphere.velocity.addScaledVector( sphere.velocity, damping );
 
         /*
@@ -1073,7 +1075,7 @@ function updateBaddies( deltaTime ) {
             }
         }
         else {
-            // Accumulate velocity sources 
+            // Accumulate velocity sources
             playerCollisions(badjo, true);
 
             baddieLookAt.copy(localplayer.collider.end);
@@ -1096,7 +1098,7 @@ function updateBaddies( deltaTime ) {
                 }
             }
         }
-        
+
 
         // Set instance mesh position to collider's position
         baddyDummy.position.set(...badjo.collider.center);
@@ -1104,7 +1106,7 @@ function updateBaddies( deltaTime ) {
         baddyDummy.updateMatrix();
         baddyMesh.setMatrixAt(i, baddyDummy.matrix);
 
-        if (badjo.health < 100) 
+        if (badjo.health < 100)
         {
             let t = (100 - badjo.health) / 100;
             baddieCurrentColor.lerpColors(baddieFullColor, baddieDeadColor, t);
@@ -1189,27 +1191,27 @@ function gamepadControls(deltaTime) {
 
     const speedDelta = deltaTime * ( localplayer.onFloor ? 25 : 8 );
 
-    if ( pad.axes[1] < -deadzone) 
+    if ( pad.axes[1] < -deadzone)
     {
         localplayer.velocity.add( getForwardVector(localplayer).multiplyScalar( speedDelta ) );
     }
 
-    if ( pad.axes[1] > deadzone) 
+    if ( pad.axes[1] > deadzone)
     {
         localplayer.velocity.add( getForwardVector(localplayer).multiplyScalar( - speedDelta ) );
     }
 
-    if ( pad.axes[0] < -deadzone) 
+    if ( pad.axes[0] < -deadzone)
     {
         localplayer.velocity.add( getSideVector(localplayer).multiplyScalar( - speedDelta ) );
     }
 
-    if ( pad.axes[0] > deadzone) 
+    if ( pad.axes[0] > deadzone)
     {
         localplayer.velocity.add( getSideVector(localplayer).multiplyScalar( speedDelta ) );
     }
 
-    if ( pad.buttons[6].pressed ) 
+    if ( pad.buttons[6].pressed )
     {
         if ( localplayer.onFloor) {
             localplayer.velocity.y = 15;
@@ -1219,7 +1221,7 @@ function gamepadControls(deltaTime) {
         }
     }
 
-    if ( pad.buttons[7].pressed) 
+    if ( pad.buttons[7].pressed)
     {
         if ( BALL_REFIRE_RATE < time_since_last_ball ) {
             time_since_last_ball = 0.;
@@ -1236,7 +1238,7 @@ function gamepadControls(deltaTime) {
     if (Math.abs(pad.axes[3]) > deadzone) {
         camera.rotation.x -= pad.axes[3] / 250;
     }
-    
+
 }
 
 function controls( deltaTime ) {
@@ -1298,7 +1300,7 @@ function controls( deltaTime ) {
         throwBall(getFakePlayerFire(f));
       }
     }
-        
+
 
 }
 
@@ -1443,7 +1445,7 @@ function animate() {
     if (!pause) {
         requestAnimationFrame( animate );
     }
-    
+
 
 
 }
