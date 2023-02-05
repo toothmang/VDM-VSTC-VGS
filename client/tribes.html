@@ -10,7 +10,7 @@
 	<body>
         <div id="hudbox">
             <div id="hud">HUD</div>
-            
+
         </div>
 		<div id="container"></div>
 
@@ -998,11 +998,19 @@ function playerCollisions(player, isBaddie = false) {
 
         player.onFloor = result.normal.y > 0;
 
-        if ( ! player.onFloor ) {
+        //if ( ! player.onFloor ) {
+            // Always do this, so vertical ramps still work
 
             player.velocity.addScaledVector( result.normal, - result.normal.dot( player.velocity ) );
 
-        }
+            // Warning: Borked?
+            // // Instead of projecting velocity onto collision plane,
+            // // rotate velocity to match. More speed. Zoom zoom.
+            // let sideways = player.velocity.cross( result.normal );
+            // let rotated = sideways.cross( result.normal );
+            // player.velocity.copy(rotated);
+
+        //}
 
         player.collider.translate( result.normal.multiplyScalar( result.depth ) );
 
@@ -1090,7 +1098,7 @@ function updateLocalPlayer( deltaTime ) {
     }
 
 
-    
+
 
     localplayer.velocity.addScaledVector( localplayer.velocity, damping );
 
@@ -1556,7 +1564,7 @@ function controls( deltaTime ) {
 
 var pause = false;
 
-loader.load( 'haus_rev2.gltf.glb', ( gltf ) => {
+loader.load( 'haus_rev3.gltf.glb', ( gltf ) => {
 
     scene.add( gltf.scene );
 
