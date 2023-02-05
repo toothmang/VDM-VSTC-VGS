@@ -10,6 +10,7 @@
 	<body>
         <div id="hudbox">
             <div id="hud">HUD</div>
+            
         </div>
 		<div id="container"></div>
 
@@ -687,7 +688,8 @@ function getFakePlayerFire(f) {
         },
         velocity: f.vel,
         id: f.id,
-        color: f.color
+        color: f.color,
+        health: f.health
     }
 
 }
@@ -702,7 +704,8 @@ function GetLocalPlayerFire() {
         dir: dir,
         vel: vel,
         id: localplayer.id,
-        color: localplayer.color
+        color: localplayer.color,
+        health: localplayer.health
     };
 }
 
@@ -754,6 +757,15 @@ function establishChannel(isDev = true) {
         })
 
         channel.on('nextLevel', function(data) {
+            localplayer.health = 100;
+            gameState.set(data);
+            resetBaddies();
+        })
+
+        channel.on('restart', function(data) {
+            showYouDied = true;
+            youDiedTime = performance.now();
+            localplayer.health = 100;
             gameState.set(data);
             resetBaddies();
         })
@@ -998,7 +1010,19 @@ function playerCollisions(player, isBaddie = false) {
 
 }
 
+var showYouDied = false;
+var youDiedTime = performance.now();
+var youDiedVisibleFor = 4;
+
 function updateLocalPlayer( deltaTime ) {
+
+    if (localplayer.health <= 0) {
+        if (channel) {
+            channel.emit('die');
+            showYouDied = true;
+            youDiedTime = performance.now();
+        }
+    }
 
     let damping = Math.exp( - 4 * deltaTime ) - 1;
 
@@ -1043,8 +1067,30 @@ function updateLocalPlayer( deltaTime ) {
         hudText += `<br>Last wave cleared in: ` + gameState.clearedIn.toFixed(2) + " s";
     }
 
-
     hud.innerHTML = hudText;
+
+    if (showYouDied || true) {
+        let elapsed = (performance.now() - youDiedTime) / 1000.0;
+        if (elapsed < youDiedVisibleFor) {
+            let t = THREE.MathUtils.clamp(elapsed / youDiedVisibleFor, 0.0, 1.0);
+
+            let fontSize = THREE.MathUtils.lerp(2.4, 8.0, t);
+
+            let yd = document.createElement("span");
+            yd.className = "died";
+            yd.style.fontSize = fontSize + "em";
+            yd.innerText = "YOU DIED";
+            hud.appendChild(document.createElement("br"));
+            hud.appendChild(yd);
+            //hudText += "<br><span class=\"died\">YOU DIED</span>";
+        }
+        else {
+            showYouDied = false;
+        }
+    }
+
+
+    
 
     localplayer.velocity.addScaledVector( localplayer.velocity, damping );
 
@@ -1500,8 +1546,10 @@ function controls( deltaTime ) {
         time_since_last_ball = 0.;
 
         let f = GetLocalPlayerFire();
-        channel.emit('fire', f);
-        throwBall(getFakePlayerFire(f));
+        if (f.health > 0) {
+            channel.emit('fire', f);
+            throwBall(getFakePlayerFire(f));
+        }
       }
     }
 

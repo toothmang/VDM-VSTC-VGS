@@ -32,6 +32,14 @@ var gameserver = {
   },
   */
 
+  anyPlayersAlive: function() {
+    for(let p in this.players) {
+      let player = this.players[p];
+      if (player.health > 0) return true;
+    }
+    return false;
+  },
+
   makeplayer: function(channel, data) {
     let playerID = channel.id;
     this.connections[playerID] = channel;
@@ -40,7 +48,8 @@ var gameserver = {
     this.players[playerID] = {
       id: playerID,
       created: nowish,
-      pos: [0.0, -100.0, 0.0]
+      pos: [0.0, -100.0, 0.0],
+      health: 100
     };
   },
 
@@ -56,6 +65,7 @@ var gameserver = {
     let player = this.players[playerID];
     player.pos = data.pos;
     player.color = data.color;
+    player.health = data.health;
 
     channel.broadcast.emit('setplayer', player);
     
@@ -112,6 +122,14 @@ var gameserver = {
     }
     else {
       channel.room.emit('gamestate', this.gamestate);
+    }
+  },
+
+  die: function(channel, data) {
+    this.players[channel.id].health = 0;
+    if (!this.anyPlayersAlive()) {
+      this.gamestate = new gamestate();
+      channel.room.emit('restart', this.gamestate);
     }
   }
 };
@@ -193,6 +211,10 @@ gio.onConnection (channel => {
 
   channel.on('kill', function(data) {
     gameserver.kill(channel, data);
+  })
+
+  channel.on('die', function(data) {
+    gameserver.die(channel, data);
   })
 
   channel.on('nextLevel', function(data) {
