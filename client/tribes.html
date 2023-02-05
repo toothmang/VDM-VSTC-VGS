@@ -249,6 +249,8 @@ loader.load( './SimpleSkinning.gltf', (gltf) => {
 
 
     loadBaddies();
+
+    loadSpinDisc();
 });
 
 //var baddieGeometry = new THREE.IcosahedronGeometry( PLAYER_RADIUS, 5 );
@@ -267,6 +269,8 @@ const baddieDeadPos = new THREE.Vector3(0, -200, 0);
 const baddieFullColor = new THREE.Color(1, 1, 1);
 const baddieDeadColor = new THREE.Color(1, 0, 0);
 const baddieCurrentColor = new THREE.Color(1, 1, 1);
+
+
 
 function loadBaddies() {
     loader.load( './baddie.glb', (baddie) => {
@@ -291,6 +295,18 @@ function loadBaddies() {
             }
         }
     } );
+
+    baddieMaterialLocal = new THREE.MeshPhysicalMaterial();
+    baddieMaterialLocal.reflectivity = 0.5;
+    baddieMaterialLocal.transmission = 0.5;
+    baddieMaterialLocal.roughness = 0.2;
+    baddieMaterialLocal.metalness = 0.9;
+    baddieMaterialLocal.clearcoat = 0.3;
+    baddieMaterialLocal.clearcoatRoughness = 0.25;
+    baddieMaterialLocal.color = new THREE.Color(0xffffff);
+    baddieMaterialLocal.ior = 1.2;
+    baddieMaterialLocal.thickness = 5.0;
+
 
     baddyMesh = new THREE.InstancedMesh(baddieMeshLocal.geometry, baddieMaterialLocal, NUM_BADDIES);
     baddyMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -430,7 +446,109 @@ function resetBaddies() {
         baddyMesh.instanceMatrix.needsUpdate = true;
         baddyMesh.instanceColor.needsUpdate = true;
     }
+}
 
+var discMesh;
+var discAnimation;
+
+function loadSpinDisc() {
+    loader.load( './spindisc.glb', (spindisc) => {
+    
+    //gltf.position.set(0, -100, 0);
+
+    let spindiscMeshLocal, spindiscMaterialLocal;
+
+    
+    spindiscMaterialLocal = new THREE.MeshPhysicalMaterial();
+    spindiscMaterialLocal.reflectivity = 0.5;
+    spindiscMaterialLocal.transmission = 0.5;
+    spindiscMaterialLocal.roughness = 0.2;
+    spindiscMaterialLocal.metalness = 0.9;
+    spindiscMaterialLocal.clearcoat = 0.3;
+    spindiscMaterialLocal.clearcoatRoughness = 0.25;
+    spindiscMaterialLocal.color = new THREE.Color(0xffffff);
+    spindiscMaterialLocal.ior = 1.2;
+    spindiscMaterialLocal.thickness = 5.0;
+
+    spindisc.scene.traverse( function ( child ) {
+        if ( child.isMesh ) {
+            spindiscMeshLocal = child;
+            child.material = spindiscMaterialLocal;
+            //spindiscMaterialLocal = child.material;
+            child.castShadow = true;
+            child.receiveShadow = true;
+
+            if ( child.material.map ) {
+                child.material.map.anisotropy = 4;
+            }
+        }
+    } );
+
+    let mixer = new THREE.AnimationMixer( spindisc.scene );
+    discAnimation = spindisc.animations[0];
+    let discAction = mixer.clipAction( discAnimation );
+    discAction.setLoop(THREE.LoopRepeat);
+    discAction.play();
+    playerMixers.push(mixer);
+
+    scene.add( spindisc.scene );
+
+    /*
+    loader.load( './tornadobullshit.glb', (tornado) => {
+    
+    //gltf.position.set(0, -100, 0);
+
+    tornado.scene.traverse( function ( child ) {
+        if ( child.isMesh ) {
+            child.castShadow = true;
+            child.receiveShadow = true;
+        }
+    } );
+
+    let mixer = new THREE.AnimationMixer( tornado.scene );
+    let tornadoAnim = tornado.animations[0];
+    let tornadoAction = mixer.clipAction( tornadoAnim );
+    tornadoAction.setLoop(THREE.LoopRepeat);
+    tornadoAction.play();
+    playerMixers.push(mixer);
+
+    scene.add( tornado.scene );
+
+    } );
+    */
+
+
+
+    return;
+
+    discMesh = new THREE.InstancedMesh(spindiscMeshLocal.geometry, spindiscMaterialLocal, NUM_SPHERES);
+    discMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+
+    let px, py, pz;
+    for(let i = 0; i < NUM_SPHERES; i++) {
+        let newdisc = {
+            index: i,
+            position: [px, py, pz],
+            collider: new THREE.Sphere( new THREE.Vector3( px, py, pz ), SPHERE_RADIUS),
+            velocity: new THREE.Vector3(),
+            revive: function() {
+                this.position = [THREE.MathUtils.randFloat(-50, 50), THREE.MathUtils.randFloat(0, 25), THREE.MathUtils.randFloat(-50, 50) ];
+
+                //console.log(`Setting baddie ${this.index}'s position to ${this.position}`);
+                this.collider.center.set(...this.position);
+
+                baddyDummy.position.set(...this.position);
+                baddyDummy.updateMatrix();
+                discMesh.setMatrixAt(this.index, baddyDummy.matrix);
+            }
+        };
+        newdisc.revive(false);
+        //baddies.push(newbaddie);
+    }
+    scene.add(discMesh);
+    discMesh.instanceMatrix.needsUpdate = true;
+
+});
 }
 
 
@@ -480,12 +598,16 @@ camera.add(audioListener);
 
 const posSound1 = new THREE.PositionalAudio (audioListener);
 const posSound2 = new THREE.PositionalAudio (audioListener);
+const posSound3 = new THREE.PositionalAudio (audioListener);
 let fireSoundPos = new THREE.Object3D();
 let hitSoundPos = new THREE.Object3D();
+let hitByBaddieSoundPos = new THREE.Object3D();
 scene.add(fireSoundPos);
 scene.add(hitSoundPos);
+scene.add(hitByBaddieSoundPos);
 fireSoundPos.add(posSound1);
 hitSoundPos.add(posSound2);
+hitByBaddieSoundPos.add(posSound3);
 
 const audioLoader = new THREE.AudioLoader().setPath('./assets/audio/');
 
@@ -501,11 +623,23 @@ audioLoader.load('fire2.ogg', function(buffer) {
     posSound2.play();
 });
 
+
+audioLoader.load('hitbybaddie.ogg', function(buffer) {
+    posSound3.setBuffer(buffer);
+    posSound3.setRefDistance(20);
+    posSound3.play();
+});
+
 function playHitSoundAt(position) {
     hitSoundPos.position.copy(position);
     posSound2.stop();
     posSound2.play();
+}
 
+function playHitByBaddieSoundAt(position) {
+    hitByBaddieSoundPos.position.copy(position);
+    posSound3.stop();
+    posSound3.play();
 }
 
 
@@ -984,15 +1118,20 @@ function playerSphereCollision( player, sphere, isBaddie = false, isSphereBaddie
             player.velocity.add( v2 ).sub( v1 );
             sphere.velocity.add( v1 ).sub( v2 );
 
-            playHitSoundAt(sphere_center);
+            
 
             if (isBaddie) {
                 player.health -= 34;
+                playHitSoundAt(sphere_center);
             }
             else {
                 player.health -= 10;
                 if (isSphereBaddie) {
                     sphere.health -= 100;
+                    playHitByBaddieSoundAt(sphere_center);
+                }
+                else {
+                    playHitSoundAt(sphere_center);
                 }
             }
 
@@ -1500,9 +1639,9 @@ function animate() {
 
     stats.update();
 
-
+    let cd = clock.getDelta() ;
     playerMixers.forEach(mixer => {
-        mixer.update( clock.getDelta() );
+        mixer.update(cd );
     });
 
     if (!pause) {
