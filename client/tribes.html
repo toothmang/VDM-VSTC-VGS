@@ -9,7 +9,13 @@
 	</head>
 	<body>
         <div id="hudbox">
-            <div id="hud">HUD</div>
+            <div id="hud">
+                <span id="hud-health-juice"></span><br>
+                Badjos remaining: <span id="hud-badjos-remaining"></span><br>
+                Waves cleared: <span id="hud-waves-cleared"></span><br>
+                Last cleared in: <span id="hud-last-cleared"></span> s<br>
+                <span id="hud-you-died" class="died">YOU DIED</span>
+            </div>
 
         </div>
 		<div id="container"></div>
@@ -91,6 +97,11 @@ scene.add( directionalLight );
 
 const container = document.getElementById( 'container' );
 const hud = document.getElementById( 'hud' );
+const hudHealthJuice = document.getElementById( 'hud-health-juice' );
+const hudBadjosRemaining = document.getElementById( 'hud-badjos-remaining' );
+const hudWavesCleared = document.getElementById( 'hud-waves-cleared' );
+const hudLastCleared = document.getElementById( 'hud-last-cleared' );
+const hudYouDied = document.getElementById( 'hud-you-died' );
 
 const renderer = new THREE.WebGLRenderer( { antialias: true } );
 renderer.setPixelRatio( window.devicePixelRatio );
@@ -1061,45 +1072,9 @@ function updateLocalPlayer( deltaTime ) {
         localplayer.jetjuice += deltaTime * JETJUICE_RATE;
     }
 
-    let juiceDisplay = Math.floor(localplayer.jetjuice);
-
-    let hudText = "Health: " + localplayer.health + " ";
-    //hud.innerHTML = `Juice: ${juiceDisplay}`;
-
     if ( keyStates['ShiftLeft'] ) {
         damping = 0.;
-        hudText += `JUICE: ${juiceDisplay}`;
-    } else {
-        hudText += `Juice: ${juiceDisplay}`;
     }
-
-    hudText += `<br>Badjos remaining: ` + gameState.getBaddiesRemaining();
-    hudText += `<br>Waves cleared: ${gameState.wavesCleared}`;
-    if (gameState.clearedIn > 0)
-    {
-        hudText += `<br>Last wave cleared in: ` + gameState.clearedIn.toFixed(2) + " s";
-    }
-
-    hud.innerHTML = hudText;
-
-    if (youDiedThisWave) {
-        let elapsed = (performance.now() - youDiedTime) / 1000.0;
-    
-        let t = THREE.MathUtils.clamp(elapsed / youDiedVisibleFor, 0.0, 1.0);
-
-        let fontSize = THREE.MathUtils.lerp(2.4, 8.0, t);
-
-        let yd = document.createElement("span");
-        yd.className = "died";
-        yd.style.fontSize = fontSize + "em";
-        yd.innerText = "YOU DIED";
-        hud.appendChild(document.createElement("br"));
-        hud.appendChild(yd);
-        //hudText += "<br><span class=\"died\">YOU DIED</span>";
-    }
-
-
-
 
     localplayer.velocity.addScaledVector( localplayer.velocity, damping );
 
@@ -1109,6 +1084,42 @@ function updateLocalPlayer( deltaTime ) {
     playerCollisions(localplayer);
 
     camera.position.copy( localplayer.collider.end );
+}
+
+function updateHUD() {
+    let juiceDisplay = Math.floor(localplayer.jetjuice);
+
+    let juiceLabel = "Juice";
+    if ( keyStates['ShiftLeft'] ) {
+        juiceLabel = "JUICE";
+    }
+
+    hudHealthJuice.textContent  = `Health: ${localplayer.health} ${juiceLabel}: ${juiceDisplay}`;
+
+    hudBadjosRemaining.textContent  = gameState.getBaddiesRemaining();
+
+    //hudText += `<br>Badjos remaining: ` + gameState.getBaddiesRemaining();
+    hudWavesCleared.textContent  = gameState.wavesCleared;
+    if (gameState.clearedIn > 0)
+    {
+        hudLastCleared.textContent  = gameState.clearedIn.toFixed(2);
+        //hudText += `<br>Last wave cleared in: ` + gameState.clearedIn.toFixed(2) + " s";
+    }
+
+    //hud.innerHTML = hudText;
+
+    if (youDiedThisWave) {
+        let elapsed = (performance.now() - youDiedTime) / 1000.0;
+    
+        let t = THREE.MathUtils.clamp(elapsed / youDiedVisibleFor, 0.0, 1.0);
+
+        let fontSize = THREE.MathUtils.lerp(2.4, 8.0, t);
+        hudYouDied.style.fontSize = fontSize + "em";
+        hudYouDied.style.display = "inline";
+    }
+    else {
+        hudYouDied.style.display = "none";
+    }
 
 }
 
@@ -1242,13 +1253,13 @@ function spheresCollisions() {
 
 function updateSpheres( deltaTime ) {
 
-    spheres.forEach( sphere => {
-        if (!sphere.active) return;
+    for(let sphere of spheres) {
+        if (!sphere.active) continue;
         sphere.collider.center.addScaledVector( sphere.velocity, deltaTime );
 
         if (sphere.collider.center.y < WATER_PLANE_HEIGHT) {
             sphere.active = false;
-            return;
+            continue;
         }
         // if ((200 * 200) < sphere.collider.center.lengthSq()) {
         //     sphere.active = false;
@@ -1281,12 +1292,13 @@ function updateSpheres( deltaTime ) {
 
         playerSphereCollision( localplayer, sphere );
 
-        baddies.forEach(baddie => {
-            if (!baddie.active) return;
+        //baddies.forEach(baddie => {
+        for(let baddie of baddies) {
+            if (!baddie.active) continue;
             playerSphereCollision(baddie, sphere, true);
-        });
+        };
 
-    } );
+    }
 
     spheresCollisions();
 
@@ -1311,7 +1323,7 @@ function updateBaddies( deltaTime ) {
 
         if (badjo.health <= 0 && badjo.active) {
             badjo.kill(true);   // tell the world about our kill
-            if (gameState.getBaddiesRemaining() < NUM_BADDIES) {
+            if (gameState.getBaddiesRemaining() > NUM_BADDIES) {
                 badjo.revive(true); // tell the world about our mercy
             }
         }
@@ -1667,7 +1679,9 @@ function teleportPlayerIfOob() {
 
 function animate() {
 
-    const deltaTime = Math.min( 0.05, clock.getDelta() ) / STEPS_PER_FRAME;
+    const clockDelta = clock.getDelta();
+    const deltaTimeWithMin = Math.min( 0.05, clockDelta );
+    const deltaTime = deltaTimeWithMin / STEPS_PER_FRAME;
 
     // we look for collisions in substeps to mitigate the risk of
     // an object traversing another too quickly for detection.
@@ -1687,11 +1701,13 @@ function animate() {
 
         updateSpheres( deltaTime );
 
-        updateBaddies(deltaTime);
-
         teleportPlayerIfOob();
 
     }
+
+    updateBaddies(deltaTimeWithMin);
+
+    updateHUD();
 
     water.material.uniforms[ 'time' ].value += deltaTime * STEPS_PER_FRAME;
 
