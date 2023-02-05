@@ -423,7 +423,30 @@ for ( let i = 0; i < NUM_PLAYERS; i ++ ) {
 
 
 
+const audioListener = new THREE.AudioListener();
+camera.add(audioListener);
 
+const posSound1 = new THREE.PositionalAudio (audioListener);
+const posSound2 = new THREE.PositionalAudio (audioListener);
+let fireSoundPos = new THREE.Object3D();
+
+scene.add(fireSoundPos);
+fireSoundPos.add(posSound1);
+fireSoundPos.add(posSound2);
+
+const audioLoader = new THREE.AudioLoader().setPath('./assets/audio/');
+
+audioLoader.load('fire1.ogg', function(buffer) {
+    posSound1.setBuffer(buffer);
+    posSound1.setRefDistance(20);
+    posSound1.play();
+});
+
+audioLoader.load('fire2.ogg', function(buffer) {
+    posSound2.setBuffer(buffer);
+    posSound2.setRefDistance(20);
+    posSound2.play();
+});
 
 
 let channel = null;
@@ -604,7 +627,7 @@ function makeLocalPlayer() {
         jetting: false,
         jetjuice: 100,
         id: -1,
-        color: getRandomColorHex()
+        color: getRandomColorHex(),
     };
     establishChannel(location.hostname == "localhost");
     setPlayerRefresh(refreshRate);
@@ -710,6 +733,20 @@ function throwBall(player) {
 
     sphere.velocity.copy( player.direction ).multiplyScalar( impulse );
     sphere.velocity.addScaledVector( player.velocity, 2 );
+
+    if (fireSoundPos && posSound1 && posSound2) {
+        fireSoundPos.position.copy(sphere.collider.center);
+
+        if (THREE.MathUtils.randInt(0, 20) > 1) {
+            posSound1.stop();
+            posSound1.play();
+        }
+        else {
+            posSound2.stop();
+            posSound2.play();
+        }
+        
+    }
 
     sphereIdx = ( sphereIdx + 1 ) % spheres.length;
 
