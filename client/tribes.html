@@ -758,13 +758,13 @@ function establishChannel(isDev = true) {
 
         channel.on('nextLevel', function(data) {
             localplayer.health = 100;
+            youDiedThisWave = false;
             gameState.set(data);
             resetBaddies();
         })
 
         channel.on('restart', function(data) {
-            showYouDied = true;
-            youDiedTime = performance.now();
+            youDiedThisWave = false;
             localplayer.health = 100;
             gameState.set(data);
             resetBaddies();
@@ -1018,18 +1018,23 @@ function playerCollisions(player, isBaddie = false) {
 
 }
 
-var showYouDied = false;
+var youDiedThisWave = false;
 var youDiedTime = performance.now();
 var youDiedVisibleFor = 4;
 
+function resetYouDied() {
+    youDiedThisWave = false;
+}
+
+
 function updateLocalPlayer( deltaTime ) {
 
-    if (localplayer.health <= 0) {
+    if (localplayer.health <= 0 && youDiedThisWave == false) {
         if (channel) {
             channel.emit('die');
-            showYouDied = true;
-            youDiedTime = performance.now();
         }
+        youDiedThisWave = true;
+        youDiedTime = performance.now();
     }
 
     let damping = Math.exp( - 4 * deltaTime ) - 1;
@@ -1077,24 +1082,20 @@ function updateLocalPlayer( deltaTime ) {
 
     hud.innerHTML = hudText;
 
-    if (showYouDied || true) {
+    if (youDiedThisWave) {
         let elapsed = (performance.now() - youDiedTime) / 1000.0;
-        if (elapsed < youDiedVisibleFor) {
-            let t = THREE.MathUtils.clamp(elapsed / youDiedVisibleFor, 0.0, 1.0);
+    
+        let t = THREE.MathUtils.clamp(elapsed / youDiedVisibleFor, 0.0, 1.0);
 
-            let fontSize = THREE.MathUtils.lerp(2.4, 8.0, t);
+        let fontSize = THREE.MathUtils.lerp(2.4, 8.0, t);
 
-            let yd = document.createElement("span");
-            yd.className = "died";
-            yd.style.fontSize = fontSize + "em";
-            yd.innerText = "YOU DIED";
-            hud.appendChild(document.createElement("br"));
-            hud.appendChild(yd);
-            //hudText += "<br><span class=\"died\">YOU DIED</span>";
-        }
-        else {
-            showYouDied = false;
-        }
+        let yd = document.createElement("span");
+        yd.className = "died";
+        yd.style.fontSize = fontSize + "em";
+        yd.innerText = "YOU DIED";
+        hud.appendChild(document.createElement("br"));
+        hud.appendChild(yd);
+        //hudText += "<br><span class=\"died\">YOU DIED</span>";
     }
 
 
@@ -1137,12 +1138,14 @@ function updateRemotePlayers( deltaTime ) {
     }
 }
 
-function playerSphereCollision( player, sphere, isBaddie = false, isSphereBaddie = false) {
+function playerSphereCollision( player, sphere, isPlayerBaddie = false, isSphereBaddie = false) {
+
+    if (player.health <= 0) return;
 
     let center;
     let points = [];
-
-    if (isBaddie) {
+    if (isPlayerBaddie) {
+        if (!player.active) return;
         center = player.collider.center;
         points = [center];
     }
@@ -1174,7 +1177,7 @@ function playerSphereCollision( player, sphere, isBaddie = false, isSphereBaddie
 
 
 
-            if (isBaddie) {
+            if (isPlayerBaddie) {
                 player.health -= 34;
                 playHitSoundAt(sphere_center);
             }
@@ -1279,6 +1282,7 @@ function updateSpheres( deltaTime ) {
         playerSphereCollision( localplayer, sphere );
 
         baddies.forEach(baddie => {
+            if (!baddie.active) return;
             playerSphereCollision(baddie, sphere, true);
         });
 
