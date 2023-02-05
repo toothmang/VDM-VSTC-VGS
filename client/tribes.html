@@ -8,7 +8,9 @@
         <script src="./lib/geckos.io-client.2.3.0.min.js"></script>
 	</head>
 	<body>
-        <div id="hud">HUD</div>
+        <div id="hudbox">
+            <div id="hud">HUD</div>
+        </div>
 		<div id="container"></div>
 
 		<!-- Import maps polyfill -->
@@ -863,37 +865,6 @@ function updateRemotePlayers( deltaTime ) {
     }
 }
 
-function baddieSphereCollision( baddie, sphere ) {
-    const center = baddie.collider.center;
-
-    const sphere_center = sphere.collider.center;
-
-    const r = baddie.collider.radius + sphere.collider.radius;
-    const r2 = r * r;
-
-    // approximation: player = 3 spheres
-
-    for ( const point of [ center ] ) {
-
-        const d2 = point.distanceToSquared( sphere_center );
-
-        if ( d2 < r2 ) {
-
-            const normal = vector1.subVectors( point, sphere_center ).normalize();
-            const v1 = vector2.copy( normal ).multiplyScalar( normal.dot( baddie.velocity ) );
-            const v2 = vector3.copy( normal ).multiplyScalar( normal.dot( sphere.velocity ) );
-
-            baddie.velocity.add( v2 ).sub( v1 );
-            sphere.velocity.add( v1 ).sub( v2 );
-
-            const d = ( r - Math.sqrt( d2 ) ) / 2;
-            sphere_center.addScaledVector( normal, - d );
-
-        }
-    }
-}
-
-
 function playerSphereCollision( player, sphere, isBaddie = false) {
 
     let center;
@@ -1222,6 +1193,8 @@ function controls( deltaTime ) {
 
 }
 
+var pause = false;
+
 loader.load( 'haus2x.gltf.glb', ( gltf ) => {
 
     scene.add( gltf.scene );
@@ -1257,6 +1230,14 @@ loader.load( 'haus2x.gltf.glb', ( gltf ) => {
     makeLocalPlayer(true);
 
     const gui = new GUI( { width: 200 } );
+    gui.add( { pause: false}, 'pause')
+        .onChange( function (value) {
+            pause = value;
+            if (!pause) {
+                requestAnimationFrame( animate );
+            }
+        });
+
     gui.add( { stats: true}, 'stats')
         .onChange( function (value) {
             stats.domElement.style.visibility =  value ? "visible" : "hidden";
@@ -1345,7 +1326,10 @@ function animate() {
         mixer.update( clock.getDelta() );
     });
 
-    requestAnimationFrame( animate );
+    if (!pause) {
+        requestAnimationFrame( animate );
+    }
+    
 
 
 }
