@@ -120,16 +120,23 @@ playerRouter.post('/', (req, res) => {
   }
 })
 
-const gio = geckos({
-  cors: {
-    origin: "https://2ths1m.com",
-    allowAuthorization: true
-  },
+var env = process.env.NODE_ENV || 'development';
+
+var geckosConfig = {
   portRange: {
     min: 5555,
     max: 5565
   }
-});
+};
+
+if (env == "production") {
+  geckosConfig.cors = {
+    origin: "https://2ths1m.com",
+    allowAuthorization: true
+  };
+}
+
+const gio = geckos(geckosConfig);
 
 gio.addServer(server);
 gio.onConnection (channel => {

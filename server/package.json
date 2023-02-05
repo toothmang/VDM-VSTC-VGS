@@ -4,7 +4,9 @@
   "description": "Global Game Jam 2023 2THS1M server code",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "local": "NODE_ENV=development node index.js",
+    "droplet": "NODE_ENV=production node index.js"
   },
   "keywords": [
     "2ths1m",

@@ -267,12 +267,24 @@ var playerSentTime = null;
 var playerReceiveTime = null;
 var playerLagTime = null;
 
-function establishChannel() {
-    channel = geckos({
-        port: 443,
-        url: "https://2ths1m.com/ggj23-server/"
-    });
+let devConfig = {
+    port: 4121,
+    url: "http://localhost"
+};
 
+let prodConfig = {
+    port: 443,
+    url: "https://2ths1m.com/ggj23-server/"
+};
+
+function establishChannel(isDev = true) {
+    if (isDev) {
+        channel = geckos(devConfig);
+    }
+    else {
+        channel = geckos(prodConfig);
+    }
+    
     // once the channel is connected to the server
     channel.onConnect(error => {
         if (error) console.error(error.message)
@@ -356,7 +368,7 @@ function makeLocalPlayer() {
         id: -1,
         color: getRandomColorHex()
     };
-    establishChannel();
+    establishChannel(location.hostname == "localhost");
     setPlayerRefresh(refreshRate);
     console.log("it's all gooooood!");
 

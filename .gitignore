@@ -1,2 +1,4 @@
-
+#symlink for local client development
+client/common
+server/common
 server/node_modules
